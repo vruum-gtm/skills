@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# vruum-skills-update-check — periodic version check for the @vruum/skills
+# npm package. Ported from gstack's gstack-update-check, simplified.
+#
+# Output (one line, or nothing):
+#   JUST_UPGRADED <old> <new>       — marker found from a recent upgrade
+#   UPGRADE_AVAILABLE <old> <new>   — npm registry reports a newer version
+#   (nothing)                       — up to date, snoozed, or check skipped
+#
+# Env overrides (for testing):
+#   VRUUM_STATE_DIR     — override ~/.vruum state directory
+#   VRUUM_REMOTE_URL    — override npm registry URL
+set -euo pipefail
+
+STATE_DIR="${VRUUM_STATE_DIR:-$HOME/.vruum}"
+VERSION_FILE="$STATE_DIR/VERSION"
+CACHE_FILE="$STATE_DIR/last-update-check"
+MARKER_FILE="$STATE_DIR/just-upgraded-from"
+SNOOZE_FILE="$STATE_DIR/update-snoozed"
+CONFIG_FILE="$STATE_DIR/config.yaml"
+REMOTE_URL="${VRUUM_REMOTE_URL:-https://registry.npmjs.org/@vruum/skills/latest}"
+
+# Force flag busts cache + snooze (used by /vruum-skills-upgrade directly)
+if [ "${1:-}" = "--force" ]; then
+  rm -f "$CACHE_FILE" "$SNOOZE_FILE"
+fi
+
+# Step 0: if config says updates disabled, bail.
+if [ -f "$CONFIG_FILE" ] && grep -qE '^[[:space:]]*update_check[[:space:]]*:[[:space:]]*false' "$CONFIG_FILE"; then
+  exit 0
+fi
+
+# Step 1: local version (written by install.js at install time)
+[ -f "$VERSION_FILE" ] || exit 0
+LOCAL="$(tr -d '[:space:]' < "$VERSION_FILE")"
+[ -n "$LOCAL" ] || exit 0
+
+# Step 2: just-upgraded marker — emit once, clear snooze, fall through to check
+# remote in case another release landed since the upgrade.
+if [ -f "$MARKER_FILE" ]; then
+  OLD="$(tr -d '[:space:]' < "$MARKER_FILE" 2>/dev/null || true)"
+  rm -f "$MARKER_FILE" "$SNOOZE_FILE"
+  [ -n "$OLD" ] && echo "JUST_UPGRADED $OLD $LOCAL"
+fi
+
+# Step 3: snooze helper — returns 0 if snoozed (stay quiet), 1 if not.
+# Snooze file: "<version> <level> <epoch>". Levels: 1=24h, 2=48h, 3+=7d.
+check_snooze() {
+  local remote_ver="$1"
+  [ -f "$SNOOZE_FILE" ] || return 1
+  local sv sl se
+  sv="$(awk '{print $1}' "$SNOOZE_FILE" 2>/dev/null || true)"
+  sl="$(awk '{print $2}' "$SNOOZE_FILE" 2>/dev/null || true)"
+  se="$(awk '{print $3}' "$SNOOZE_FILE" 2>/dev/null || true)"
+  [ -n "$sv" ] && [ -n "$sl" ] && [ -n "$se" ] || return 1
+  case "$sl" in *[!0-9]*) return 1 ;; esac
+  case "$se" in *[!0-9]*) return 1 ;; esac
+  # New version drop clears the snooze.
+  [ "$sv" = "$remote_ver" ] || return 1
+  local dur
+  case "$sl" in
+    1) dur=86400 ;;
+    2) dur=172800 ;;
+    *) dur=604800 ;;
+  esac
+  local now expires
+  now="$(date +%s)"
+  expires=$(( se + dur ))
+  [ "$now" -lt "$expires" ]
+}
+
+# Step 4: cache — UP_TO_DATE 60 min, UPGRADE_AVAILABLE 12 hours.
+if [ -f "$CACHE_FILE" ]; then
+  CACHED="$(cat "$CACHE_FILE" 2>/dev/null || true)"
+  case "$CACHED" in
+    UP_TO_DATE*)        TTL=60 ;;
+    UPGRADE_AVAILABLE*) TTL=720 ;;
+    *)                  TTL=0 ;;
+  esac
+  STALE=$(find "$CACHE_FILE" -mmin +"$TTL" 2>/dev/null || true)
+  if [ -z "$STALE" ] && [ "$TTL" -gt 0 ]; then
+    case "$CACHED" in
+      UP_TO_DATE*)
+        CV="$(echo "$CACHED" | awk '{print $2}')"
+        [ "$CV" = "$LOCAL" ] && exit 0
+        ;;
+      UPGRADE_AVAILABLE*)
+        CO="$(echo "$CACHED" | awk '{print $2}')"
+        if [ "$CO" = "$LOCAL" ]; then
+          CN="$(echo "$CACHED" | awk '{print $3}')"
+          check_snooze "$CN" && exit 0
+          echo "$CACHED"
+          exit 0
+        fi
+        ;;
+    esac
+  fi
+fi
+
+# Step 5: slow path — fetch latest from npm registry.
+mkdir -p "$STATE_DIR"
+RESP="$(curl -fsSL --max-time 5 "$REMOTE_URL" 2>/dev/null || true)"
+# Extract "version":"X.Y.Z" without jq.
+REMOTE="$(echo "$RESP" | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+REMOTE="$(echo "$REMOTE" | tr -d '[:space:]')"
+
+# Reject anything that doesn't look like a semver number.
+if ! echo "$REMOTE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE"
+  exit 0
+fi
+
+if [ "$LOCAL" = "$REMOTE" ]; then
+  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE"
+  exit 0
+fi
+
+echo "UPGRADE_AVAILABLE $LOCAL $REMOTE" > "$CACHE_FILE"
+check_snooze "$REMOTE" && exit 0
+echo "UPGRADE_AVAILABLE $LOCAL $REMOTE"

@@ -27,7 +27,54 @@ const os = require('node:os');
 
 const VERSION = require('./package.json').version;
 const PACKAGE_ROOT = __dirname;
-const SKILLS_SRC = path.join(PACKAGE_ROOT, 'skills');
+const PKG_SKILLS = path.join(PACKAGE_ROOT, 'skills');
+const PKG_AGENTS = path.join(PACKAGE_ROOT, 'agents');
+
+// Installer-owned stable path. Mirrors gstack's ~/.claude/skills/gstack/
+// approach: package contents get copied here so symlinks target a path that
+// never moves, even when npm/npx wipes the original package directory.
+const VRUUM_ROOT = path.join(os.homedir(), '.vruum');
+const VRUUM_SKILLS = path.join(VRUUM_ROOT, 'skills');
+const VRUUM_AGENTS = path.join(VRUUM_ROOT, 'agents');
+const VRUUM_BIN = path.join(VRUUM_ROOT, 'bin');
+const VRUUM_VERSION_FILE = path.join(VRUUM_ROOT, 'VERSION');
+const PKG_BIN = path.join(PACKAGE_ROOT, 'bin');
+
+// Prelude prepended to every SKILL.md as it lands in ~/.vruum/skills/. Runs
+// an update check (1h cache), then gives Claude natural-language instructions
+// for how to react. Mirrors gstack's preamble pattern but injected at install
+// time rather than via a template-gen step.
+const SKILL_PRELUDE = `## Preamble (run first)
+
+\`\`\`bash
+_UPD=$(~/.vruum/bin/vruum-skills-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+\`\`\`
+
+If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`~/.vruum/skills/vruum-skills-upgrade/SKILL.md\` and follow the inline upgrade flow. If \`~/.vruum/config.yaml\` has \`auto_upgrade: true\`, run the upgrade silently; otherwise AskUserQuestion with four options — (A) upgrade now, (B) upgrade with changelog preview, (C) snooze, (D) skip this session. If user picks snooze, bump the snooze level in \`~/.vruum/update-snoozed\` (format: \`<new_version> <level> <unix_epoch>\`; level 1 = 24h, 2 = 48h, 3+ = 7d). Then continue with the skill.
+
+If output shows \`JUST_UPGRADED <from> <to>\`: tell the user "Running @vruum/skills v{to} (just updated!)" in one line, then continue.
+
+Otherwise proceed silently with the skill below.
+
+---
+`;
+
+function injectPrelude(skillDir) {
+  const skillFile = path.join(skillDir, 'SKILL.md');
+  if (!fs.existsSync(skillFile)) return;
+  const raw = fs.readFileSync(skillFile, 'utf8');
+  // Find end of YAML frontmatter. If missing, inject at top.
+  let insertAt = 0;
+  if (raw.startsWith('---\n')) {
+    const end = raw.indexOf('\n---\n', 4);
+    if (end !== -1) insertAt = end + 5;
+  }
+  const before = raw.slice(0, insertAt);
+  const after = raw.slice(insertAt);
+  const patched = before + '\n' + SKILL_PRELUDE + '\n' + after.replace(/^\n+/, '');
+  fs.writeFileSync(skillFile, patched);
+}
 
 // Known harness skill directories. Add a target here when a new harness
 // lands on a stable skill-dir convention.
@@ -90,11 +137,54 @@ other assistants that don't yet support MCP prompts.`);
 }
 
 function listAvailableSkills() {
-  if (!fs.existsSync(SKILLS_SRC)) return [];
+  if (!fs.existsSync(PKG_SKILLS)) return [];
   return fs
-    .readdirSync(SKILLS_SRC, { withFileTypes: true })
+    .readdirSync(PKG_SKILLS, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
+}
+
+function syncVruumRoot({ dryRun }) {
+  if (dryRun) {
+    const rows = [
+      `would sync ${PKG_SKILLS} -> ${VRUUM_SKILLS} (with auto-update prelude)`,
+    ];
+    if (fs.existsSync(PKG_AGENTS)) rows.push(`would sync ${PKG_AGENTS} -> ${VRUUM_AGENTS}`);
+    if (fs.existsSync(PKG_BIN)) rows.push(`would sync ${PKG_BIN} -> ${VRUUM_BIN}`);
+    rows.push(`would write ${VRUUM_VERSION_FILE} = ${VERSION}`);
+    return rows;
+  }
+  fs.mkdirSync(VRUUM_ROOT, { recursive: true });
+
+  // Skills — copy then inject prelude in-place on the ~/.vruum/ copy.
+  fs.rmSync(VRUUM_SKILLS, { recursive: true, force: true });
+  fs.cpSync(PKG_SKILLS, VRUUM_SKILLS, { recursive: true });
+  for (const skillName of listAvailableSkills()) {
+    injectPrelude(path.join(VRUUM_SKILLS, skillName));
+  }
+  const rows = [`synced ${VRUUM_SKILLS} (prelude injected)`];
+
+  if (fs.existsSync(PKG_AGENTS)) {
+    fs.rmSync(VRUUM_AGENTS, { recursive: true, force: true });
+    fs.cpSync(PKG_AGENTS, VRUUM_AGENTS, { recursive: true });
+    rows.push(`synced ${VRUUM_AGENTS}`);
+  }
+
+  // Bin scripts — update-check needs to land at a stable path and be exec.
+  if (fs.existsSync(PKG_BIN)) {
+    fs.rmSync(VRUUM_BIN, { recursive: true, force: true });
+    fs.cpSync(PKG_BIN, VRUUM_BIN, { recursive: true });
+    for (const entry of fs.readdirSync(VRUUM_BIN)) {
+      fs.chmodSync(path.join(VRUUM_BIN, entry), 0o755);
+    }
+    rows.push(`synced ${VRUUM_BIN}`);
+  }
+
+  // VERSION file — read by vruum-skills-update-check as the local version.
+  fs.writeFileSync(VRUUM_VERSION_FILE, VERSION + '\n');
+  rows.push(`wrote ${VRUUM_VERSION_FILE} = ${VERSION}`);
+
+  return rows;
 }
 
 function ensureTargetDir(target, dryRun) {
@@ -159,7 +249,7 @@ function commandInstall({ targets: extraTargets, dryRun }) {
   const skills = listAvailableSkills();
   if (skills.length === 0) {
     throw new Error(
-      `No skills found under ${SKILLS_SRC}. This looks like a broken package.`
+      `No skills found under ${PKG_SKILLS}. This looks like a broken package.`
     );
   }
   const targets = detectTargets(extraTargets);
@@ -173,6 +263,8 @@ function commandInstall({ targets: extraTargets, dryRun }) {
     process.exit(1);
   }
 
+  const syncRows = syncVruumRoot({ dryRun });
+
   const summary = [];
   for (const target of targets) {
     const { created } = ensureTargetDir(target.dir, dryRun);
@@ -182,14 +274,18 @@ function commandInstall({ targets: extraTargets, dryRun }) {
       summary.push({ target: target.dir, detail: 'created target dir' });
     }
     for (const skillName of skills) {
-      const srcAbs = path.join(SKILLS_SRC, skillName);
+      const srcAbs = path.join(VRUUM_SKILLS, skillName);
       summary.push(linkSkill({ name: skillName, srcAbs, target: target.dir, dryRun }));
     }
   }
 
   const prefix = dryRun ? '[dry-run] ' : '';
   console.log(`${prefix}@vruum/skills v${VERSION}`);
-  console.log(`${prefix}skills source: ${SKILLS_SRC}`);
+  console.log(`${prefix}package source: ${PACKAGE_ROOT}`);
+  console.log(`${prefix}stable root:    ${VRUUM_ROOT}`);
+  for (const row of syncRows) {
+    console.log(`  ${prefix}${row}`);
+  }
   for (const target of targets) {
     console.log(`${prefix}target: ${target.dir}${target.autoDetected ? ' (auto)' : ''}`);
   }
@@ -213,19 +309,25 @@ function commandInstall({ targets: extraTargets, dryRun }) {
 function commandUninstall({ targets: extraTargets, dryRun }) {
   const skills = listAvailableSkills();
   const targets = detectTargets(extraTargets);
-  if (targets.length === 0) {
-    console.error('No AI harness skill directories detected. Nothing to remove.');
-    return;
-  }
-
   const prefix = dryRun ? '[dry-run] ' : '';
   console.log(`${prefix}@vruum/skills v${VERSION} uninstall`);
+
+  if (targets.length === 0) {
+    console.error('No AI harness skill directories detected.');
+  }
+
+  // A symlink is "ours" if it points into ~/.vruum/skills/. We accept any
+  // target there (not just the current skill name) so stale links from
+  // renamed skills still get cleaned up.
+  const isOurLink = (linkTarget) => {
+    const resolved = path.resolve(linkTarget);
+    return resolved.startsWith(VRUUM_SKILLS + path.sep) || resolved === VRUUM_SKILLS;
+  };
 
   for (const target of targets) {
     console.log(`${prefix}target: ${target.dir}`);
     for (const skillName of skills) {
       const dst = path.join(target.dir, skillName);
-      const srcAbs = path.join(SKILLS_SRC, skillName);
       let existing = null;
       try {
         const lstat = fs.lstatSync(dst);
@@ -242,7 +344,7 @@ function commandUninstall({ targets: extraTargets, dryRun }) {
         console.log(`  ${prefix}not-installed  ${skillName}`);
         continue;
       }
-      if (existing.kind !== 'symlink' || existing.target !== srcAbs) {
+      if (existing.kind !== 'symlink' || !isOurLink(existing.target)) {
         console.log(`  ${prefix}skipped        ${skillName}  [not our symlink]`);
         continue;
       }
@@ -252,6 +354,33 @@ function commandUninstall({ targets: extraTargets, dryRun }) {
         fs.unlinkSync(dst);
         console.log(`  ${prefix}removed        ${skillName}`);
       }
+    }
+  }
+
+  // Only clean up our own subdirectories — ~/.vruum/ is a shared state dir
+  // (e.g. the .agents/ vruum-update-check keeps config.yaml + snooze state
+  // there, and both installers share that config).
+  for (const dir of [VRUUM_SKILLS, VRUUM_AGENTS, VRUUM_BIN]) {
+    if (!fs.existsSync(dir)) continue;
+    if (dryRun) {
+      console.log(`${prefix}would remove ${dir}`);
+    } else {
+      fs.rmSync(dir, { recursive: true, force: true });
+      console.log(`${prefix}removed ${dir}`);
+    }
+  }
+  if (fs.existsSync(VRUUM_VERSION_FILE)) {
+    if (dryRun) {
+      console.log(`${prefix}would remove ${VRUUM_VERSION_FILE}`);
+    } else {
+      fs.unlinkSync(VRUUM_VERSION_FILE);
+      console.log(`${prefix}removed ${VRUUM_VERSION_FILE}`);
+    }
+  }
+  // Best-effort rmdir the root if now empty; ignore ENOTEMPTY.
+  if (!dryRun && fs.existsSync(VRUUM_ROOT)) {
+    try { fs.rmdirSync(VRUUM_ROOT); } catch (err) {
+      if (err.code !== 'ENOTEMPTY' && err.code !== 'EEXIST') throw err;
     }
   }
 }
@@ -273,7 +402,7 @@ function commandList({ targets: extraTargets }) {
     }
     for (const skillName of skills) {
       const dst = path.join(target.dir, skillName);
-      const srcAbs = path.join(SKILLS_SRC, skillName);
+      const srcAbs = path.join(VRUUM_SKILLS, skillName);
       try {
         const lstat = fs.lstatSync(dst);
         if (lstat.isSymbolicLink()) {
