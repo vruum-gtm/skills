@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vruum": {
+      "type": "http",
+      "url": "https://api.vruum.ai/mcp"
+    }
+  }
+}

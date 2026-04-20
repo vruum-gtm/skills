@@ -1,0 +1,20 @@
+{
+  "name": "vruum",
+  "version": "0.1.0",
+  "description": "Vruum AI skills + remote MCP server for managed outbound. Slash commands for prospect enrichment and reply diagnosis, paired with the full Vruum MCP tool surface over OAuth 2.1.",
+  "author": {
+    "name": "Vruum AI",
+    "url": "https://vruum.ai"
+  },
+  "homepage": "https://vruum.ai",
+  "repository": "https://github.com/vruum-gtm/skills",
+  "license": "MIT",
+  "keywords": [
+    "vruum",
+    "mcp",
+    "sales",
+    "outbound",
+    "gtm",
+    "sales-intelligence"
+  ]
+}

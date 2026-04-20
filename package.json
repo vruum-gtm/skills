@@ -1,0 +1,37 @@
+{
+  "name": "@vruum/skills",
+  "version": "0.1.0",
+  "description": "Vruum AI skills for Claude Code, Codex CLI, and any AI assistant with a skill directory. Pairs with the Vruum MCP server at https://api.vruum.ai/mcp.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vruum-gtm/skills.git"
+  },
+  "homepage": "https://vruum.ai",
+  "bugs": {
+    "url": "https://github.com/vruum-gtm/skills/issues"
+  },
+  "bin": {
+    "vruum-skills": "./install.js"
+  },
+  "files": [
+    "install.js",
+    "README.md",
+    "LICENSE",
+    ".mcp.json",
+    "skills/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "vruum",
+    "mcp",
+    "claude-code",
+    "codex",
+    "ai",
+    "sales",
+    "outreach",
+    "gtm"
+  ]
+}
