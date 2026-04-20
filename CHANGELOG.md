@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0] - 2026-04-20
+
+### Added
+- `/outreach-triage` — self-serve outreach queue review. Dispatches parallel `vruum-outreach-reviewer` subagents that evaluate each pending draft (T1 structural + cross-touch dedup, T2+ with deep prospect research + rewrite-if-needed, reply responses with full context). Presents verdicts to the user for approval. Single-company scope.
+- `/engagement-triage` — self-serve LinkedIn engagement + content post review. Dispatches parallel `vruum-engagement-reviewer` subagents across four queue types (warming comments, nurture reactions, marketing comments, demand-gen content posts) with voice-fit and relevance checks.
+- `agents/vruum-outreach-reviewer.md` + `agents/vruum-engagement-reviewer.md` — subagent definitions that power the two new skills. Full Vruum MCP tool access, review-rubric instructions baked in.
+
+### Changed
+- Plugin version bumped to 0.2.0.
+
+
 ## [0.1.0] - 2026-04-20
 
 ### Added
