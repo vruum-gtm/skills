@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.2] - 2026-04-21
+
+### Added
+- **`/pipeline-fill` skill.** Single-company pipeline-filling orchestrator: checks queue depth per segment, dispatches pre-filter subagents against Sales Nav searches, imports fits and dismisses poor ICP matches. Covers shared-search dedup and "drying up" detection.
+
+### Changed
+- **`/outreach-triage` and `/engagement-triage`** SKILL.md content refreshed to match the current `vruum-outreach-reviewer` and `vruum-engagement-reviewer` system prompts bundled in `agents/`. Agents invoked via the Agent tool with `subagent_type`; falls back to general-purpose subagents with MCP tool names listed.
+- Auto-update preamble paths regenerated against the current `@vruum/skills@0.4.2` build.
+
+### Notes
+- Plugin content is now synced from the `vruum_ai` monorepo's public-variant build (`.agents/scripts/publish-public-skills.ts --variant public`). This repo remains the source for the Claude Code plugin marketplace; npm publishing continues from `vruum_ai`.
+
 ## [0.4.0] - 2026-04-20
 
 ### Added

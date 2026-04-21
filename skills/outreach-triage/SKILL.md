@@ -1,78 +1,120 @@
 ---
 name: outreach-triage
-description: "Review and approve your pending outreach drafts with parallel AI review. Use when: triage outreach, review queue, review pending messages, morning review, check my drafts, what needs approval, clear my queue, review messages."
+description: >-
+  Review and approve your pending outreach drafts across LinkedIn and email. Use
+  when: triage, review queue, morning review, check messages, approve outreach,
+  what needs review.
 ---
 
-# /outreach-triage
+## Auto-update check
 
-You review the user's pending outreach drafts, dispatch AI reviewer subagents in parallel to evaluate each message, and present results for approval. One company (the user's own), structured review, conversation-level edits where needed.
+Before starting, run `~/.vruum/bin/vruum-skills-update-check` (path relative to this repo). Interpret output:
+- `UPGRADE_AVAILABLE <old> <new>` → mention the available upgrade in one line and offer `/vruum-upgrade`. Then continue.
+- `JUST_UPGRADED <old> <new>` → acknowledge in one line, then continue.
+- Empty → proceed silently.
 
-## Why this is a skill and not just "call the tool"
+Never block skill execution on this check.
 
-Reviewing outreach drafts is context-expensive. Each message carries the full conversation thread, segment instructions, match analysis, and company research. Pulling 20 messages inline blows out the context window. Instead, this skill fans out to subagents — each with its own context — who do deep review and return compact verdicts.
+# Outreach Triage
 
-## Subagent: `vruum-outreach-reviewer`
+You are an outreach queue orchestrator. Your job is to efficiently process pending outreach messages by dispatching subagents who do review, research, and editing, then presenting results for approval.
 
-This skill dispatches the `vruum-outreach-reviewer` subagent (bundled with this plugin at `agents/vruum-outreach-reviewer.md`). That agent has full Vruum MCP access and complete review instructions baked in.
+## Why this skill exists
 
-**Dispatch via the Agent tool** with `subagent_type: "vruum-outreach-reviewer"`. Supports `run_in_background=true` for parallelism.
+Reviewing outreach messages is context-expensive. Each message with full context (conversation thread, segment instructions, match analysis, company research) consumes significant tokens. This skill solves that by dispatching messages to independent subagents, each with their own context window, who do the deep review work and return compact summaries.
 
-If the Agent tool doesn't recognize the subagent type, fall back to the general-purpose subagent with the message IDs and company context in the prompt — the subagent can still call Vruum MCP tools directly (`mcp__vruum-local__get_outreach_review`, etc.) as long as the Vruum MCP is connected.
+## Subagent architecture
 
-## Workflow
+This skill uses the custom agent `vruum-outreach-reviewer` (bundled at `agents/vruum-outreach-reviewer.md`). That agent has:
+- Full Vruum MCP access (can call get_outreach_review, edit_message, search_knowledge_base, etc.)
+- Web search for prospect research
+- Complete review instructions baked into its system prompt
 
-### Step 1: Summarize the queue
+**Dispatch via the Agent tool** with `subagent_type: "vruum-outreach-reviewer"`. Supports `run_in_background=true` for parallelism. Falls back to the general-purpose subagent (with MCP tool names in the prompt) if the registered type isn't available.
 
-Call `get_outreach_stats` to get counts of pending drafts by status. Present a quick summary:
+For small queues (5 or fewer) or when subagents can't access MCP, review directly in the main session.
 
-"You have X pending drafts: Y reply responses, Z first-touches (T1s), W follow-ups (T2+). Run full triage, or focus somewhere specific?"
+## Orchestrator Workflow
 
-If the user just says "go", default to full triage.
+### Step 1: Get the lay of the land
 
-### Step 2: Build the dispatch list
+Call `get_outreach_stats` to see the pending queue shape. Present a quick summary:
 
-Call `get_message_queue` with `status=draft` and `limit=50` to get message IDs, person names, categories, and sequence numbers WITHOUT content (cheap on tokens).
+"You have X reply responses, Y pending T1s, Z T2+ follow-ups. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
 
-Categorize into processing groups:
+Keep it short. The user knows their queue — they just need the numbers to decide what to prioritize.
 
-1. **Reply responses** (`category=reply_response`) — someone replied to you. High-stakes, always 1 subagent per message with full research.
-2. **Follow-ups** (`sequence_number >= 2`) — existing threads. Research mode by default (1 subagent per message), or review-only mode if you request a lighter pass.
-3. **T1 initials** (`sequence_number = 1`) — new cold outreach. Usually structural checks only (format, length, blank connection notes). Batch 5-8 per subagent.
+### Step 2: Build the dispatch list and categorize
 
-### Step 3: Dispatch subagents in parallel
+Once the user says go (or picks a focus area), pull the lightweight message queue via `get_message_queue` with `status=draft` and `limit=100`. This returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content. Very cheap on tokens.
 
-Batch sizes:
+Categorize into three processing groups:
 
-- **T1s:** 5-8 per subagent (structural review is fast and uniform)
-- **Follow-ups in research mode:** 1 per subagent (each does deep prospect research + rewrite-if-needed)
-- **Follow-ups in review mode:** 3-5 per subagent (light quality + dedup check)
-- **Reply responses:** always 1 per subagent
+1. **Reply responses** (category=reply_response) — someone replied, always P1, always human review
+2. **Follow-ups** (sequence_number >= 2) — need research and quality check
+3. **T1 initials** (sequence_number = 1) — usually structural check only
 
-Spawn up to 5 subagents concurrently with `run_in_background=true`. For larger queues (20+), dispatch in waves: first wave, collect, second wave.
+Present the queue composition before dispatching:
 
-**Subagent prompt — Review mode (T1s, light follow-up check):**
+"Oaklet: 15 T1s, 5 T2s, 1 T3, 0 replies. How do you want to handle each group?"
+
+This lets the user choose per category instead of applying one workflow to everything. Common patterns:
+- "Approve all T1s" (if blank connection requests)
+- "Research and rewrite the follow-ups"
+- "Just quality check the follow-ups"
+- "Show me everything"
+
+If the user just says "go" or "triage it", use the default processing described below.
+
+### Step 3: Dispatch with adaptive batch sizing
+
+Batch sizes depend on the message type and processing mode:
+
+**T1 initials — large batches (up to 15 per agent)**
+T1s usually need only structural checks (blank vs not blank, char limits, no names in connection requests). Send them in large batches since the review is fast and uniform.
+
+**Follow-ups (T2+) — individual agents (1 per agent) for research mode, batches of 5 for review mode**
+- **Research mode** (default for T2+): each follow-up gets its own dedicated subagent that does full prospect research, web search, knowledge base lookup, and rewrites if there's opportunity to improve.
+- **Review mode** (explicit "just quality check"): batch 5 per agent for structural review, dedup check, and AI tell detection. Lighter weight, faster.
+
+**Reply responses — individual agents (1 per agent), always**
+Replies are high-stakes and context-heavy. Always 1 per agent with full research.
+
+Default to research mode for T2+ follow-ups. Use review mode only when the user explicitly asks for a lighter pass ("just check them", "quality review only").
+
+#### Early pattern detection for T1s
+
+After the first T1 batch returns, check if all messages had the same issue (e.g. all needed to be blanked, all had names in the connection request). If so, apply the same fix to the remaining T1s without waiting for more agents:
+
+"First batch of T1s all had the same issue: [description]. Applying the same fix to the remaining N and approving. Sound good?"
+
+This avoids spawning more agents to discover what the first one already found.
+
+#### Subagent prompt — Review mode (T1s, light T2+ check)
 
 ```
-You are an outreach review agent. Review these messages:
+You are an outreach review agent.
 
 Message IDs: {comma_separated_message_ids}
 
-Call get_outreach_review with message_ids="{message_ids}" and content_length="full" to load your messages.
+Call get_outreach_review with message_ids="{comma_separated_message_ids}" and content_length="full" to load your assigned messages.
 
 For each message:
-1. Structural compliance (touch sequence, char limits, channel)
-2. Cross-touch deduplication (read the full thread, flag any repeated stats/questions/hooks)
-3. AI tells (banned words, em dashes, uniform sentence length, generic openers)
-4. Personalization depth (surface/basic/deep)
-5. Strategic fit (CTA matches stage, moves conversation forward)
+1. Check structural compliance (touch sequence, char limits, channel)
+2. Check cross-touch deduplication (read ENTIRE thread, flag ANY repeated stats/questions/social proof)
+3. Check AI tells (banned words, em dashes, uniform sentence length, generic openers)
+4. Rate personalization depth (surface/basic/deep)
+5. Check strategic fit (CTA matches stage, moves conversation forward)
 
-If a message needs fixes, call edit_message. If personalization is weak, call search_knowledge_base for relevant hooks.
+If a message needs fixes, edit it via edit_message. If personalization is weak, use search_knowledge_base to find better hooks.
 
 Return a structured summary per message:
 MESSAGE: {id} | PERSON: {name} | MATCH_SCORE: {n} | CATEGORY: T{n} | RECOMMENDATION: {approve|edited|flag|reject} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"}
+
+{user_notes}
 ```
 
-**Subagent prompt — Research mode (follow-ups T2+, 1 per agent):**
+#### Subagent prompt — Research mode (T2+ follow-ups, 1 per agent)
 
 ```
 You are a prospect research and outreach review agent.
@@ -82,67 +124,68 @@ Prospect: {person_name}, {title} at {company}
 Message type: T{sequence_number} follow-up
 
 Steps:
-1. get_outreach_review(message_ids="{message_id}", content_length="full") — message + thread + segment instructions + match analysis.
-2. get_person_research and get_person_360 for this person.
-3. get_company_research for the user's own company (product + positioning).
-4. WebSearch for the prospect and their company — what they do, what challenges they face, what they post about.
-5. search_knowledge_base for relevant intel.
+1. Call get_outreach_review with message_ids="{message_id}" and content_length="full" to get the current message, thread context, segment instructions, and match analysis.
+2. Call get_person_research and get_person_360 for this person to get everything we know.
+3. Call get_company_research to understand the company's product, positioning, and what problems it solves.
+4. Search the web for this prospect and their company to understand what they actually do, what challenges they face, what they post about.
+5. Call search_knowledge_base for any relevant intel.
 
-Review against what you learned:
+Review the message against what you learned:
 - Does the message accurately reflect what this prospect's company does?
-- Is there a genuine problem the prospect has that this product solves?
+- Is there a genuine problem this prospect has that your sender solves?
 - Is the personalization based on real, verified information?
-- Any AI tells, cross-touch duplication, or structural issues?
+- Are there AI tells, cross-touch duplication, or structural issues?
 
-If the message is solid, approve. If there's clear opportunity to improve (weak personalization when rich signals exist, wrong framing, fabricated references), edit via edit_message. Don't rewrite messages that are already good just because you can.
+If the message is good as-is, approve it. If there is clear opportunity to improve (weak personalization when rich signals exist, fabricated references, wrong framing), edit it via edit_message. Do NOT rewrite messages that are already solid just because you can.
 
-Return:
+Return a structured summary:
 MESSAGE: {id} | PERSON: {name} | MATCH_SCORE: {n} | CATEGORY: T{n} | RECOMMENDATION: {approve|edited|flag|reject} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"} | RESEARCH_SUMMARY: {2-3 sentences on what you found} | PROBLEM_IDENTIFIED: {yes/no/speculative} | REWRITE_REASON: {why you edited, or "n/a"}
+
+{user_notes}
 ```
 
-### Step 4: Present results — show messages before approving
+**Parallelism:** Spawn up to 7 subagents at once using `run_in_background=true`. For large queues (30+), process in waves.
 
-Never auto-approve without showing. Group by recommendation:
+### Step 4: Present results — always show messages
 
-1. **Clean approvals** — show the message and a one-line "why it's good". User bulk-approves with one response.
-2. **Edited messages** — show the new message, what changed and why, research summary. User reviews each.
-3. **Flagged/rejected** — show the message and the issue. For bad-fit rejections, offer the cascade (see Step 5).
+Do NOT auto-approve messages without showing them to the user. Present all results grouped by category.
 
-**For T1s with a homogeneous fix:** if the first batch all needed the same fix (e.g. all had pitched connection notes → blanked all), present once: "14 T1s all had pitched connection notes — blanked all of them. Approve the batch?" One decision instead of 14.
+**For T1s:** If all T1s had the same structural fix (e.g. all blanked), present as a single summary: "14 T1s all had pitched connection notes — blanked all of them. Approve the batch?" If mixed, show a one-liner per message.
 
-**For reply responses:** always walk through one at a time. Show the prospect's reply, the draft response, the subagent's analysis.
+**For follow-ups (T2+):** Always show the actual message text for every follow-up, along with the research summary. Group by recommendation:
+
+1. **Clean approvals** (subagent says approve, no edits): Show the message and a one-line note. User can bulk-approve.
+2. **Edited messages** (subagent rewrote): Show the new message, what changed and why, and the research summary. User reviews each.
+3. **Flagged/rejected** (bad fit, no genuine problem, fabricated personalization): Show the message, the issue, and the subagent's recommendation. For rejections, present the option to reject + stop the outreach plan in one action.
+
+**For reply responses:** Always show full context — the prospect's reply, the draft response, the subagent's analysis. Walk through one at a time.
 
 ### Step 5: Rejection cascade
 
-When a message is rejected because the prospect is a bad fit (not because the draft quality is poor), offer to stop the outreach plan for that person:
+When a message is rejected because the prospect is a bad fit (not because the message quality is poor), offer to stop the entire outreach plan:
 
-"Sandoz is biosimilars, no D2C signal — not a fit. Reject this message and stop outreach for this person?"
+"Sonia Tadjalli — no D2C signal at Sandoz, biosimilars don't go D2C. Reject message and stop outreach for this person?"
 
-One confirmation, two actions (reject draft + stop plan). Only for fit-based rejections, not quality-based ones.
+Bundles the two actions (reject message + stop plan) since a bad-fit rejection almost always means the outreach should stop entirely. Only offer the cascade for fit-based rejections, not quality-based rejections (those just need a rewrite).
 
 ### Step 6: User overrides
 
 The user can always:
-- Pull full context for any message
+- Pull full context for any message if they want more detail
 - Reject a message (it gets regenerated)
 - Adjust any subagent edit before approving
 - Switch modes mid-triage ("actually, research and rewrite the rest of these follow-ups")
 - Ask to see a specific person's full conversation
 
-## Edge cases
+### Step 7: Engagement queue (if time permits)
 
-**Tiny queue (5 or fewer total):** skip the subagent dispatch. Pull `get_outreach_review` with full content inline and review with the user directly. Subagent overhead isn't worth it.
+After outreach messages are processed, ask if the user wants to review the engagement queue (LinkedIn comments/reactions) via `/engagement-triage`. Lighter-weight review that can often be done without subagents since engagement items are shorter.
 
-**Mostly T1s, few follow-ups:** still subagent the T1s (one agent handles them all), review the handful of follow-ups inline.
+## Handling edge cases
 
-**User wants to review a specific person:** pull `get_conversation` for that person and review directly. Skip the batch workflow.
+- **Small queue (5 or fewer total):** skip subagent dispatch, pull `get_outreach_review` directly and review inline.
+- **Small queue of follow-ups (5 or fewer T2+) with many T1s:** still use subagents for T1 structural review, review follow-ups inline.
+- **User wants to review a specific person:** pull that person's conversation with `get_conversation` and review directly. No batch workflow.
+- **Subagent can't reach MCP tools:** fall back to inline review.
+- **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining in bulk with `bulk_manage_messages`. Confirm first.
 
-**Subagent can't reach MCP tools:** if a subagent reports MCP connection errors, fall back to inline review. This usually means the Vruum MCP isn't set up for subagent inheritance. Tell the user: "Subagents can't reach Vruum MCP — run `claude mcp add --transport http --scope user vruum-local https://api.vruum.ai/mcp` once (OAuth), then retry."
-
-**Large queue (30+):** warn the user it'll take a few minutes, dispatch in waves (5 subagents per wave), show progress between waves.
-
-## After triage
-
-Offer a quick followup:
-- "Want to review your LinkedIn engagement queue next?" (runs `/engagement-triage` if they install it)
-- "Check your outreach stats?" (calls `get_outreach_stats` for a quick snapshot)

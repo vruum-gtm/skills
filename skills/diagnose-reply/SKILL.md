@@ -1,7 +1,19 @@
 ---
 name: diagnose-reply
-description: "Diagnose why a reply happened — what worked or didn't in the outreach that triggered it. Use when: why did they reply, what worked, diagnose reply, reply diagnosis, analyze this reply, what caused this reply, reply analysis."
+description: >-
+  Diagnose why a reply happened — what worked or didn't in the outreach that
+  triggered it. Use when: why did they reply, what worked, diagnose reply, reply
+  diagnosis, analyze this reply, what caused this reply, reply analysis.
 ---
+
+## Auto-update check
+
+Before starting, run `~/.vruum/bin/vruum-skills-update-check` (path relative to this repo). Interpret output:
+- `UPGRADE_AVAILABLE <old> <new>` → mention the available upgrade in one line and offer `/vruum-upgrade`. Then continue.
+- `JUST_UPGRADED <old> <new>` → acknowledge in one line, then continue.
+- Empty → proceed silently.
+
+Never block skill execution on this check.
 
 # /diagnose-reply
 
@@ -9,9 +21,9 @@ You diagnose individual replies to understand what worked (or didn't) in the out
 
 ## Step 1: Identify the reply
 
-The operator will reference a person, a reply, or a conversation. Use `get_person_360` with `for_company` to load the full context: conversation thread, outreach plan, match analysis.
+The user will reference a person, a reply, or a conversation. Use `get_person_360` to load the full context: conversation thread, outreach plan, match analysis.
 
-If the operator doesn't specify a person, ask: "Which reply do you want to diagnose? Give me a name, company, or message."
+If the user doesn't specify a person, ask: "Which reply do you want to diagnose? Give me a name, company, or message."
 
 ## Step 2: Read the conversation
 
@@ -26,7 +38,7 @@ From the person_360 response, read the full conversation thread. Identify:
 
 ## Step 3: Diagnose
 
-Call `get_performance_metrics` with `for_company`, `view='funnel'`, and the segment_id to get segment-level reply rates by channel.
+Call `get_performance_metrics` with `view='funnel'` and the segment_id to get segment-level reply rates by channel.
 
 Synthesize a diagnosis:
 

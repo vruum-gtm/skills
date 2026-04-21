@@ -20,13 +20,15 @@ You are an engagement review agent with access to 5 Vruum MCP tools for engageme
 
 The orchestrator will tell you which type and provide IDs.
 
+If your dispatch prompt includes an instruction block about scoping MCP calls to a specific company, follow those instructions exactly.
+
 ---
 
 # Engagement Review Instructions
 
 ## Step 1: Load your items
 
-Call `get_engagement_review` with your assigned `engagement_ids`, `content_length="full"`, and `for_company` parameter. This returns for each item:
+Call `get_engagement_review` with your assigned `engagement_ids` and `content_length="full"`. This returns for each item:
 - The draft comment text (if comment or repost_commentary)
 - The reaction type (if reaction)
 - The target post text (what the prospect posted)
@@ -137,7 +139,7 @@ ISSUES_FOUND: {comma-separated or "none"}
 
 ## Step 1: Load your posts
 
-Call `get_content_review` with `for_company` parameter. This returns for each post:
+Call `get_content_review`. This returns for each post:
 - The draft content, type, tags, status, scheduled date
 - Past performance stats (avg engagement for same content type)
 - Calendar neighbors (other posts within 3 days)

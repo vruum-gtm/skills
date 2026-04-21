@@ -1,9 +1,22 @@
 ---
 name: engagement-triage
-description: "Review and approve your pending LinkedIn engagement drafts and demand-gen content posts. Use when: triage engagements, review engagement queue, review warming comments, review nurture reactions, review marketing comments, review content drafts, check engagement queue."
+description: >-
+  Review and approve your pending LinkedIn engagement drafts and demand-gen
+  content posts. Use when: triage engagements, review engagement queue, review
+  warming comments, review nurture reactions, review marketing comments, review
+  content drafts, check engagement queue.
 ---
 
-# /engagement-triage
+## Auto-update check
+
+Before starting, run `~/.vruum/bin/vruum-skills-update-check` (path relative to this repo). Interpret output:
+- `UPGRADE_AVAILABLE <old> <new>` → mention the available upgrade in one line and offer `/vruum-upgrade`. Then continue.
+- `JUST_UPGRADED <old> <new>` → acknowledge in one line, then continue.
+- Empty → proceed silently.
+
+Never block skill execution on this check.
+
+# Engagement Triage
 
 You review the user's pending LinkedIn engagement drafts (warming comments, nurture reactions, marketing comments) and demand-gen content posts, dispatching review subagents in parallel and presenting results for approval. Separate from `/outreach-triage` (which handles outreach messages).
 
@@ -23,7 +36,7 @@ Falls back to general-purpose subagent with MCP tool names in the prompt if the 
 
 ### Step 1: Summarize the queue
 
-Call `get_marketing_overview` (single-company view) to see what's pending. Present a one-liner:
+Call `get_marketing_overview` to see what's pending. Present a one-liner:
 
 "X warming drafts, Y nurture drafts, Z marketing drafts, N content posts pending."
 
@@ -64,84 +77,80 @@ For each queue type the user selected, call the appropriate list endpoint, get I
 
 Spawn up to 4 subagents concurrently. For larger queues (15+), dispatch in waves.
 
-**Subagent prompt — engagement items:**
+Subagent prompt template:
 
 ```
-You are an engagement review agent.
+You are an engagement review agent for {company_name}.
 
-{SENDER PROFILE block}
+SENDER PROFILE:
+{sender_profile_block}
 
-Engagement IDs: {comma_separated_engagement_ids}
-Queue type: {warming | nurture | marketing}
+Engagement IDs: {comma_separated_ids}
 
-Call get_engagement_review with engagement_ids="{ids}" and content_length="full" to load your items. Each item includes the original post, the target persona, match analysis, budget status, bundle info, and the draft comment.
+Call get_engagement_review with engagement_ids="{comma_separated_ids}" and content_length="full" to load your assigned items.
 
-For each item:
-1. Voice fit — does the draft sound like the sender? (check SENDER PROFILE above; flag anything generic or out-of-voice)
-2. Relevance — does the comment add value to the post's conversation, or is it a thin "great post!" type?
-3. Relationship stage — is the engagement appropriate for where you are with this person? (warming = not yet in outreach, nurture = mid-conversation, marketing = brand surfacing)
-4. AI tells — generic phrases, em dashes, overused words, robotic cadence
-5. Strategic fit — is this specific post worth engaging with for this specific person, or is it a thin excuse?
+For each engagement:
+1. Check voice fit against sender profile (would this person actually say this?)
+2. Check relevance to the prospect's post
+3. Check for AI tells (generic phrasing, hollow flattery, buzzwords)
+4. Check for over-pitching (warming comments should NOT sell)
+5. Rate quality: genuine value-add vs generic engagement
 
-If the draft needs editing, call manage_engagement with action=edit. If it's bad enough to drop entirely (off-persona, low-value, stale post), recommend skip.
+If a comment needs fixes, edit it via manage_engagement. Only edit when there's genuine improvement — don't rewrite solid comments.
 
-Return:
-ENGAGEMENT: {id} | TARGET: {person name} | TYPE: {warming|nurture|marketing} | RECOMMENDATION: {approve|edited|skip} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"}
+IMPORTANT: Do NOT approve or skip engagements. Return recommendations only.
+
+Return a structured summary for each item:
+ENGAGEMENT: {id} | TYPE: {reaction|comment} | PERSON: {name} | SOURCE: {warming|nurture|marketing} | RECOMMENDATION: {approve|edited|flag|skip} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | COMMENT_TEXT: {the comment text, or "reaction" for likes}
 ```
 
-**Subagent prompt — content posts:**
+For high-value comments (match score 80+, nurture, cold marketing), use research mode: 1 comment per subagent. The subagent reads the prospect's actual post via `get_person_360`, understands what they're saying, and edits only if there's a real opportunity to improve.
 
-```
-You are a content review agent.
+### Step 5: Present results — always show content
 
-{SENDER PROFILE block}
+Do NOT approve engagements without showing them to the user.
 
-Post IDs: {comma_separated_post_ids}
+**Reactions:** Present as a batch with count. "12 warming reactions — all look good. Approve?" If any flagged, show those individually.
 
-Call get_content_review with post_ids="{ids}" and content_length="full" to load drafts. Each includes the post text, scheduled time, past-performance stats for similar posts, and calendar context.
+**Comments:** Always show the actual comment text for every comment. Group by recommendation:
 
-For each post:
-1. Voice fit — sounds like the sender? (SENDER PROFILE above; flag anything generic)
-2. Hook quality — does the first line stop scroll? Is it specific and worth reading further?
-3. AI tells — em dashes, AI-vocabulary ("delve", "robust", "comprehensive"), uniform sentence length, generic openers
-4. Strategic fit — does this post serve the sender's ICP and positioning, or is it generic thought-leadership?
-5. Calendar fit — appropriate timing relative to other recent posts? (get_content_review returns calendar context)
+1. **Clean approvals**: Show comment text and one-line note. User can bulk-approve.
+2. **Edited comments**: Show the new comment, what changed, and why. User reviews each.
+3. **Flagged/skipped**: Show the issue and recommendation.
 
-If the post needs editing, call manage_content_post with action=edit. If it's bad enough to reject, recommend reject.
+**Content posts:** Always show full post text with calendar context and past performance. User approves individually.
 
-Return:
-POST: {id} | SCHEDULED: {time} | RECOMMENDATION: {approve|edited|reject} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"} | HOOK_RATING: {1-10}
-```
+### Step 6: Skip cascade
 
-### Step 5: Present results — show drafts before approving
+When skipping an engagement because the prospect is a bad fit (not because the comment quality is poor), offer to stop the outreach/warming plan:
 
-Group by recommendation:
+"Keith Hemmert (match score 33) — weak fit, no evidence of relevant practice. Skip this engagement and stop warming for this person?"
 
-1. **Clean approvals** — show the draft and a one-line "why it's good". Bulk-approve with one response.
-2. **Edited drafts** — show the new version, what changed, why. User reviews each.
-3. **Skip / reject** — show the draft and the issue. One action to confirm.
+This bundles skip + stop plan since a bad-fit engagement almost always means warming should stop entirely. Only offer the cascade for fit-based skips, not quality-based edits.
 
-For content posts, always walk through one at a time — they're user-visible and higher stakes than a comment.
+### Step 7: Early pattern detection
 
-### Step 6: User overrides
+After the first batch returns for any engagement type:
 
-- Pull full context for any item
-- Adjust any subagent edit before approving
-- Skip the whole queue type ("actually, don't review marketing, just warming")
-- Ask to see a specific person's engagement history (`get_engagement_queue` filtered by person_id)
+- **All reactions clean:** "First batch of reactions all approved. N more look similar — approve the rest?" Apply without more agents.
+- **All comments have the same issue** (e.g., all too generic, all missing sender voice): Flag the pattern to the user. "First 8 comments are all generic 'great post' style — likely a prompt issue. Want me to edit them all with the same fix, or skip the batch?"
+- **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as a segment/prompt config issue rather than fixing each one individually.
+
+### Step 8: Summary
+
+After all queues are processed, present a summary:
+- Total items reviewed
+- Approved (with user confirmation)
+- Edited and approved
+- Flagged for review
+- Skipped
+- Plans stopped (from skip cascades)
+- Content posts approved/scheduled
 
 ## Edge cases
 
-**Tiny queue (10 or fewer total):** skip subagents, review inline with the user. Subagent overhead isn't worth it.
+- Queue <= 10 items: skip subagent dispatch, review inline
+- Single item: review directly, no subagents
+- Subagent MCP errors: fall back to inline review
+- **Homogeneous pattern detected**: If first batch all has the same issue, apply fix to remaining without more agents. Confirm with the user first.
 
-**Only warming, no content:** skip Step 4's content-post branch.
-
-**Subagent can't reach Vruum MCP:** fall back to inline review. Tell the user: "Subagents can't reach Vruum MCP — run `claude mcp add --transport http --scope user vruum-local https://api.vruum.ai/mcp` once (OAuth), then retry."
-
-**User wants to see past performance before approving content:** `get_content_review` already returns past performance stats per post — reference them in your presentation so the user can calibrate.
-
-## After triage
-
-Offer:
-- "Want to review your outreach queue next?" (runs `/outreach-triage`)
-- "Check your marketing overview?" (calls `get_marketing_overview` for a recap)

@@ -1,7 +1,20 @@
 ---
 name: enrich-prospect
-description: "Deep prospect diarization — synthesize everything known about a person into a structured intelligence profile. Use when: enrich prospect, deep research, profile this person, who is this person, research prospect, diarize prospect, prospect briefing."
+description: >-
+  Deep prospect diarization — synthesize everything known about a person into a
+  structured intelligence profile. Use when: enrich prospect, deep research,
+  profile this person, who is this person, research prospect, diarize prospect,
+  prospect briefing.
 ---
+
+## Auto-update check
+
+Before starting, run `~/.vruum/bin/vruum-skills-update-check` (path relative to this repo). Interpret output:
+- `UPGRADE_AVAILABLE <old> <new>` → mention the available upgrade in one line and offer `/vruum-upgrade`. Then continue.
+- `JUST_UPGRADED <old> <new>` → acknowledge in one line, then continue.
+- Empty → proceed silently.
+
+Never block skill execution on this check.
 
 # /enrich-prospect
 
@@ -11,7 +24,7 @@ This is not a database lookup. This is an analyst's brief.
 
 ## Step 1: Gather all sources
 
-Call these in parallel with `for_company`:
+Call these in parallel:
 - `get_person_360` — profile, match analysis, research, activity, outreach plan, deal
 - `get_person_research` — structured research data (if exists)
 - `get_company_research` — company intelligence
@@ -19,7 +32,7 @@ Call these in parallel with `for_company`:
 If research is thin (no person_research, or match_analysis is null):
 - `fetch_linkedin_data` — pull their recent posts and profile
 - WebSearch for "[person name] [company name]" — recent news, talks, publications
-- `search_knowledge_base` with `for_company` — relevant sales docs
+- `search_knowledge_base` — relevant sales docs
 
 ## Step 2: Diarize
 
