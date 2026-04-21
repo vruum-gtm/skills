@@ -11,8 +11,11 @@
   "plugins": [
     {
       "name": "vruum",
-      "source": "./",
-      "description": "Vruum AI skills with one-click connection to the Vruum MCP server.",
+      "source": {
+        "source": "npm",
+        "package": "@vruum/skills"
+      },
+      "description": "Vruum AI skills with one-click connection to the Vruum MCP server. Content is pulled from @vruum/skills on npm; every npm publish flows to this marketplace automatically.",
       "homepage": "https://vruum.ai",
       "category": "productivity"
     }
