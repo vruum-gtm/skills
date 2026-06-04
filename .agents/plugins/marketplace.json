@@ -1,0 +1,12 @@
+{
+  "name": "vruum-gtm",
+  "interface": { "displayName": "Vruum GTM" },
+  "plugins": [
+    {
+      "name": "vruum",
+      "source": { "source": "local", "path": "./plugins/vruum" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_USE" },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,154 @@
+---
+name: pipeline-fill
+description: >-
+  Source-agnostic pipeline orchestrator. Picks a source per segment (Sales Nav /
+  YC / CSV / discovery), runs harness deep research, applies a pre-filter gate,
+  then saves into the segment via the backend authoritative match_score>=70
+  gate. Use when: fill pipeline, import prospects, daily imports, need more
+  prospects, discover prospects from scratch, deep research before import.
+---
+# Pipeline Fill
+
+You are a source-agnostic pipeline filler. You pick segments to fill, pick a source per segment (Sales Nav / YC / CSV / discovery), and orchestrate harness deep research that gates against the segment ICP before saving prospects into the backend pipeline.
+
+## Why this skill exists
+
+Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), pre-filters against segment ICP, then saves the qualified ones into the segment via the backend's canonical gate.
+
+## Where the heavy logic lives
+
+Steps 3–8 (pre-flight, Phase A research, Phase B research, harness gate, save chain, audit-log report) are defined in `RESEARCH-ENGINE.md` (in this same skill directory). This skill owns:
+- Step 1: segment picker (with ETA)
+- Step 2: source picker (conditional PLATFORM block + always-visible HARNESS block)
+- The discovery-mode handler (paste candidates inline OR describe an ICP and source via harness tools)
+- The multi-segment grammar
+
+When you reach Step 3, **stop and read** `RESEARCH-ENGINE.md`. That doc is the canonical source for the candidate-list shape, the harness gate criteria, the identity-resolution save chain, and the canonical handoff prompt that source skills use.
+
+## Subagent architecture
+
+This skill uses two subagents (defined in `.claude/agents/`):
+- `vruum-company-deep-researcher` — Phase A, one per unique company in the batch (max 10 in parallel)
+- `vruum-prospect-deep-researcher` — Phase B, one per person (max 5 in parallel — Phase B is rate-limited because it calls `fetch_linkedin_data`)
+
+### MCP access requirements (load-bearing)
+
+Subagents need access to the Vruum MCP server. Register it once in your AI assistant:
+
+- **Claude Code**: `~/.claude.json` → `mcpServers.vruum` = `{"type": "http", "url": "https://api.vruum.ai/mcp"}`
+- **Codex CLI**: `~/.codex/config.toml` → `[mcp_servers.vruum]` with `url = "https://api.vruum.ai/mcp"`
+- **Other**: connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow)
+
+The orchestrator's MCP precheck at the top of Step 3 (`get_research_playbook` call) catches misconfiguration upfront. Don't skip it.
+
+### Dispatch methods (in order of preference)
+
+1. **Subagent dispatch** (primary): Use your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type: vruum-company-deep-researcher` / `vruum-prospect-deep-researcher`; Codex's equivalent). Subagents should inherit MCP access from the runtime config. Run waves of up to 10 company-research subagents and up to 5 prospect-research subagents in parallel.
+
+2. **Inline**: If subagents can't reach Vruum MCP in your runtime, run the research inline in the main session instead. Do NOT bounce through another CLI as a workaround — that is a runtime-configuration problem to surface to the user.
+
+## Inputs
+
+- `prospect_list` (optional): pre-built candidate list matching the canonical shape in `RESEARCH-ENGINE.md`. If provided, skip the source-picker step and go straight to Step 3 (pre-flight). This is how source skills hand off.
+- `segment(s)`: target segment(s); multi-segment supported.
+- `mode`: `research-only` | `save` | `save-and-enroll` (default: `save-and-enroll`).
+- `gate_threshold`: minimum backend `match_score` to enroll (default: segment's existing quality_gate).
+
+## Workflow — Step 1: Show pipeline status & pick segments
+
+Call `manage_sales_nav_searches(action="list")` + `get_outreach_stats` for queue depth + `get_segments` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
+
+```
+Pipeline status:
+
+  1. DFW CFOs       — 12/30 (18 needed) — harness ETA: ~16m
+  2. Austin VPs     — 28/30 (2 needed)  — harness ETA: ~3m
+  3. Houston CTOs   — 0/20  (20 needed) — harness ETA: ~18m
+  4. NYC Partners   — 40/40 ✓
+
+Which segments to fill? (all / 1,3 / skip 2)
+Total if all needing fill: ~37m sequential.
+```
+
+ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase B (5-parallel cap on Phase B). Multi-segment ETAs are sequential.
+
+**Table rules:**
+- One row per segment, numbered sequentially
+- Show current/target counts and how many are needed
+- Flag searches that are drying up (⚠️) or accounts near capacity
+- Mark segments already at target with ✓ and don't number them
+- Show per-segment ETA so operator can budget time
+
+**Wait for the user's response.** Parse: "all", "1, 3", "skip 2", "just the CFO ones", etc. Only proceed with the selected segments.
+
+## Workflow — Step 2: Pick source per segment (only if `prospect_list` not provided)
+
+Per selected segment, prompt:
+
+In **public mode** (the package builder strips the PLATFORM block from this skill before publishing), the picker shows only HARNESS modes, renumbered 1–4:
+
+```
+Source for {segment_name}?
+  HARNESS mode (your compute, in-chat deep research, visible & interruptible):
+    1. sales-nav-deep    — Sales Nav profiles + harness deep research
+    2. yc                — scrape YC directory with filters you provide
+    3. csv               — read a CSV file (path next), harness deep research
+    4. discovery         — paste candidates inline OR describe an ICP and I'll source them via WebSearch + Vruum MCP + LinkedIn search
+```
+
+The conditional rendering happens at package-build time, not at skill-runtime — when the orchestrator runs in operator mode it sees the 6-option block; when it runs in public mode (stripped package) it sees only the 4-option block. Source-skill dispatch logic below uses option labels (`sales-nav-platform`, `yc`, etc.), not numbers, so the renumbering is cosmetic.
+
+Per source pick, dispatch:
+
+- `sales-nav-platform` → invoke `/sales-nav-platform-fill` (calls `import_from_sales_nav`; backend handles everything; **skip Steps 3-8 of this skill entirely** — backend agents own the rest).
+- `csv-platform` → invoke `/csv-platform-fill` (calls `start_csv_import`; backend handles everything; same — skip Steps 3-8).
+- `sales-nav-deep` → invoke `/sales-nav-deep-fill` to produce a candidate list, then continue to Step 3 with it.
+- `yc` → invoke `/yc-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
+- `csv` → invoke `/csv-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
+- `discovery` → use the discovery-mode handler below to produce a candidate list (handler branches: paste-shaped input → parse, prose ICP brief → harness sources via WebSearch + Vruum MCP + LinkedIn search), then continue to Step 3 with it.
+
+**Multi-segment behavior:** segments run sequentially. Segment 1's Step 7 (save chain + bulk enroll) completes before segment 2's Step 3 starts. Predictable rate-limit behavior, simple progress narrative. Trade-off: 3-segment fills are ~37min wall-clock vs ~22min if Phase A/B were overlapped across segments. Cross-segment overlap is a v2.
+
+## Discovery-mode handler (for `discovery` source)
+
+Discovery mode covers two paths off the same prompt:
+
+**Path A — operator pastes candidates** (you already know who you want)
+Tolerant line parser, candidates produced directly:
+
+- **Line is a LinkedIn URL** (matches `^https?://(www\.)?linkedin\.com/in/[^/?]+/?(\?.*)?$`) → set `linkedin_url`, leave `name` and `company` null. Phase B will fill them via `fetch_linkedin_data`.
+- **Line has comma(s)** → split as `name, company[, linkedin_url][, email]`. If 4 fields, last is email. If 3 fields, last is linkedin_url IF it matches the LinkedIn URL pattern, else interpret as email if it has `@`, else treat as a 2-field line + extra junk.
+- **Line is just text** → treat as `full_name`, prompt operator: "what company for {full_name}?". If the operator gets prompted for >3 lines, ask once "set company={X} for all unspecified?" to batch.
+
+Drop blank lines and lines starting with `#` (treat as comments).
+
+**Cap at 100 lines** by default. Above that, ask: "{N} prospects pasted — process all, or first M? (a/N)". Keeps operators from accidentally kicking off a 1,000-prospect harness fill.
+
+**Path B — operator describes an ICP** (you want the harness to discover candidates)
+Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "directors of operations at MSPs in DFW, recently posted about hiring". Harness sources candidates from scratch:
+
+1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `get_segment` and `get_company_profile`) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
+2. **Source companies first** — use harness tools to find candidate companies matching the brief:
+   - `WebSearch` for funding announcements, news, lists ("Series A SaaS 2026", "TechCrunch Series B SaaS announcements")
+   - `WebFetch` on Crunchbase / PitchBook / company directories
+   - `mcp__vruum__search_linkedin_people` for company-fitting roles when the brief is people-shaped (e.g. "VPs of Eng at Series A SaaS")
+3. **Source people from each company** — for each candidate company, use `mcp__vruum__find_people_at_company` (Unipile-backed; respects LinkedIn rate limits) to find titles matching the segment ICP. Cap at ~5 people per company to spread the discovery surface.
+4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search_existing_people` so you don't research someone the segment already has.
+5. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
+
+Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.
+
+**Path detection:** if the first non-comment line looks like a URL or has commas (paste-shaped), use Path A. If it's prose without URLs/commas and >40 chars, use Path B. If ambiguous, ask: "paste, or describe the ICP and I discover?"
+
+## Workflow — Steps 3 onward
+
+**Switch to `RESEARCH-ENGINE.md` here.** Read that doc and follow Step 3 (pre-flight) → Step 4 (Phase A) → Step 5 (Phase B) → Step 6 (harness gate) → Step 7 (save chain with identity resolution) → Step 8 (aggregate report + audit log to `.context/runs/`).
+
+Do not duplicate the engine logic in this skill — link operators back to the engine doc when they ask "what does the gate check?" or "how does the save chain work?"
+
+## Notes
+
+- **Composability** with source skills: source skills produce candidate lists; this orchestrator runs the research engine. Both directions allowed (operator can run a source skill standalone or run /pipeline-fill as the front door).
+- **Real money costs** are in Phase B (LinkedIn API + Hunter calls + OpenAI tokens for the prospect subagent). Phase A is mostly WebFetch/WebSearch which is operator-network. The batch primitives in Step 3 keep dedup latency low (~2s vs 12s pre-batch).
+- **Harness offload framing**: deep research runs in your IDE (your tokens). The backend `MatchAnalysisAgent` runs the canonical gate (~$0.02/prospect on Vruum's bill). This split is intentional — see memory `project_harness_offload_strategy.md`.
+- **Audit trail**: every run writes to `.context/runs/pipeline-fill-{ISO-timestamp}.md`. Useful weeks later for "what did the YC fill on Apr 12 import?"
