@@ -56,7 +56,7 @@ The orchestrator's MCP precheck at the top of Step 3 (`get_research_playbook` ca
 
 ## Workflow — Step 1: Show pipeline status & pick segments
 
-Call `manage_sales_nav_searches(action="list")` + `get_outreach_stats` for queue depth + `get_segments` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
+Call `manage_sales_nav_searches(action="list")` + `get_outreach_stats` for queue depth + `get_campaigns` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
 
 ```
 Pipeline status:
@@ -127,7 +127,7 @@ Drop blank lines and lines starting with `#` (treat as comments).
 **Path B — operator describes an ICP** (you want the harness to discover candidates)
 Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "directors of operations at MSPs in DFW, recently posted about hiring". Harness sources candidates from scratch:
 
-1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `get_segment` and `get_company_profile`) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
+1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `get_campaign` and `get_company_profile`) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
 2. **Source companies first** — use harness tools to find candidate companies matching the brief:
    - `WebSearch` for funding announcements, news, lists ("Series A SaaS 2026", "TechCrunch Series B SaaS announcements")
    - `WebFetch` on Crunchbase / PitchBook / company directories
