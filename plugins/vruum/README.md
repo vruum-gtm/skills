@@ -2,7 +2,7 @@
 
 Vruum AI skills for Claude Code, Codex CLI, and any AI assistant with a skill directory.
 
-Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). For MCP-native clients (Claude Code, Claude Desktop, Cursor, VS Code Copilot, Cline), connecting to the MCP URL surfaces these skills as native slash commands. This npm package is for assistants that don't yet support MCP prompts (Codex CLI, ChatGPT, Windsurf).
+Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `invoke_skill` tool (alongside `list_skills` / `get_skill` / `publish_skill`) so any connected client can run these skills. Skills themselves are distributed via the Claude Code plugin / marketplace; this npm package installs them into the agent-standard skills directory for harnesses without plugin support (Codex CLI, ChatGPT, Windsurf).
 
 ## Install
 
@@ -18,7 +18,7 @@ Add to `~/.claude.json`:
 }
 ```
 
-Slash commands appear automatically once registered. You don't need this npm package for Claude Code.
+Install the skills via the Claude Code plugin / marketplace (below); the MCP server provides the `invoke_skill` tool. You don't need this npm package for Claude Code.
 
 ### Codex CLI
 
@@ -45,17 +45,17 @@ npx @vruum/skills install --target /path/to/skills/dir   # any other harness
 
 ### Cursor / VS Code Copilot / Cline
 
-Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). Skills surface as slash commands automatically — you don't need this npm package.
+Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). The `invoke_skill` tool becomes available — to also install the skill files locally, use this npm package's `install --target` below.
 
 ### Claude Desktop / Claude.ai (Cowork)
 
-Install the Vruum plugin via the official plugin directory — bundles the connector and slash commands in one step:
+Install the Vruum plugin via the official plugin directory — bundles the connector and the skills in one step:
 
 [github.com/vruum-gtm/skills/releases/latest/download/vruum-plugin.zip](https://github.com/vruum-gtm/skills/releases/latest/download/vruum-plugin.zip)
 
 Download and upload via **Settings → Customize → Plugins → "+"**.
 
-### ChatGPT / Windsurf / other harnesses without MCP prompts
+### ChatGPT / Windsurf / other harnesses without plugin support
 
 ```bash
 npx @vruum/skills install --target /path/to/skills/dir
