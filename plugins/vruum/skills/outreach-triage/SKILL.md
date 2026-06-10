@@ -16,7 +16,7 @@ Reviewing outreach messages is context-expensive. Each message with full context
 ## Subagent architecture
 
 This skill uses the custom agent `vruum-outreach-reviewer` (bundled at `agents/vruum-outreach-reviewer.md`). That agent has:
-- Full Vruum MCP access (can call get_outreach_review, edit_message, search_knowledge_base, etc.)
+- Full Vruum MCP access (can call get_outreach_review, manage_messages, search, etc.)
 - Web search for prospect research
 - Complete review instructions baked into its system prompt
 
@@ -28,7 +28,7 @@ For small queues (5 or fewer) or when subagents can't access MCP, review directl
 
 ### Step 1: Get the lay of the land
 
-Call `get_outreach_stats` to see the pending queue shape. Present a quick summary:
+Call `fetch` with type=stats and subtype=outreach to see the pending queue shape. Present a quick summary:
 
 "You have X reply responses, Y pending T1s, Z T2+ follow-ups. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
 
@@ -36,7 +36,7 @@ Keep it short. The user knows their queue — they just need the numbers to deci
 
 ### Step 2: Build the dispatch list and categorize
 
-Once the user says go (or picks a focus area), pull the lightweight message queue via `get_message_queue` with `status=draft` and `limit=100`. This returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content. Very cheap on tokens.
+Once the user says go (or picks a focus area), pull the lightweight message queue via `search` with type=messages, a status=draft filter, and limit=100. This returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content. Very cheap on tokens.
 
 Categorize into three processing groups:
 
@@ -96,7 +96,7 @@ For each message:
 4. Rate personalization depth (surface/basic/deep)
 5. Check strategic fit (CTA matches stage, moves conversation forward)
 
-If a message needs fixes, edit it via edit_message. If personalization is weak, use search_knowledge_base to find better hooks.
+If a message needs fixes, edit it via manage_messages with action=edit. If personalization is weak, use search with type=kb to find better hooks.
 
 Return a structured summary per message:
 MESSAGE: {id} | PERSON: {name} | MATCH_SCORE: {n} | CATEGORY: T{n} | RECOMMENDATION: {approve|edited|flag|reject} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"}
@@ -115,10 +115,10 @@ Message type: T{sequence_number} follow-up
 
 Steps:
 1. Call get_outreach_review with message_ids="{message_id}" and content_length="full" to get the current message, thread context, segment instructions, and match analysis.
-2. Call get_person_research and get_person_360 for this person to get everything we know.
-3. Call get_company_research to understand the company's product, positioning, and what problems it solves.
+2. Call fetch with type=person_research plus get_person_360 for this person to get everything we know.
+3. Call fetch with type=company_research to understand the company's product, positioning, and what problems it solves.
 4. Search the web for this prospect and their company to understand what they actually do, what challenges they face, what they post about.
-5. Call search_knowledge_base for any relevant intel.
+5. Call search with type=kb for any relevant intel.
 
 Review the message against what you learned:
 - Does the message accurately reflect what this prospect's company does?
@@ -126,7 +126,7 @@ Review the message against what you learned:
 - Is the personalization based on real, verified information?
 - Are there AI tells, cross-touch duplication, or structural issues?
 
-If the message is good as-is, approve it. If there is clear opportunity to improve (weak personalization when rich signals exist, fabricated references, wrong framing), edit it via edit_message. Do NOT rewrite messages that are already solid just because you can.
+If the message is good as-is, approve it. If there is clear opportunity to improve (weak personalization when rich signals exist, fabricated references, wrong framing), edit it via manage_messages with action=edit. Do NOT rewrite messages that are already solid just because you can.
 
 Return a structured summary:
 MESSAGE: {id} | PERSON: {name} | MATCH_SCORE: {n} | CATEGORY: T{n} | RECOMMENDATION: {approve|edited|flag|reject} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | EDITED: {yes/no} | ISSUES_FOUND: {list or "none"} | RESEARCH_SUMMARY: {2-3 sentences on what you found} | PROBLEM_IDENTIFIED: {yes/no/speculative} | REWRITE_REASON: {why you edited, or "n/a"}
@@ -175,7 +175,7 @@ After outreach messages are processed, ask if the user wants to review the engag
 
 - **Small queue (5 or fewer total):** skip subagent dispatch, pull `get_outreach_review` directly and review inline.
 - **Small queue of follow-ups (5 or fewer T2+) with many T1s:** still use subagents for T1 structural review, review follow-ups inline.
-- **User wants to review a specific person:** pull that person's conversation with `get_conversation` and review directly. No batch workflow.
+- **User wants to review a specific person:** pull that person's conversation with `fetch` (type=conversation) and review directly. No batch workflow.
 - **Subagent can't reach MCP tools:** fall back to inline review.
-- **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining in bulk with `bulk_manage_messages`. Confirm first.
+- **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining in bulk with a single `manage_messages` call passing an id array (same action applied to every id, max 50 per call). Confirm first.
 

@@ -16,13 +16,13 @@ This is not a database lookup. This is an analyst's brief.
 
 Call these in parallel:
 - `get_person_360` — profile, match analysis, research, activity, outreach plan, deal
-- `get_person_research` — structured research data (if exists)
-- `get_company_research` — company intelligence
+- `fetch` type=person_research — structured research data (if exists)
+- `fetch` type=company_research — company intelligence
 
 If research is thin (no person_research, or match_analysis is null):
-- `fetch_linkedin_data` — pull their recent posts and profile
+- `research` action=linkedin_fetch — pull their recent posts and profile
 - WebSearch for "[person name] [company name]" — recent news, talks, publications
-- `search_knowledge_base` — relevant sales docs
+- `search` type=kb — relevant sales docs
 
 ## Step 2: Diarize
 
@@ -69,7 +69,7 @@ No embedding search finds these gaps. No keyword filter finds them. You have to 
 
 "Append this diarization as a note? It will appear on the person card timeline and be visible to the outreach agent when writing messages."
 
-If approved: call `add_person_note` with a condensed version of the diarization (the SAYS/ACTUALLY gap, key signals, and recommended approach). Each call appends a new row to the person's notes timeline — no overwrite of prior notes.
+If approved: call `manage_person` action=note (payload={body}) with a condensed version of the diarization (the SAYS/ACTUALLY gap, key signals, and recommended approach). Each call appends a new row to the person's notes timeline — no overwrite of prior notes.
 
 ## Notes
 

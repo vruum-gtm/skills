@@ -36,7 +36,7 @@ If the post makes specific claims (statistics, market sizes), flag as "unverifie
 
 ## Step 3: Edit if needed
 
-For structural issues (no line breaks, weak hook), use `manage_content_post` with action="edit". For brand voice and factual issues, FLAG rather than edit.
+For structural issues (no line breaks, weak hook), use `manage_content` with action="edit". For brand voice and factual issues, FLAG rather than edit.
 
 ## Step 4: Return structured summary
 

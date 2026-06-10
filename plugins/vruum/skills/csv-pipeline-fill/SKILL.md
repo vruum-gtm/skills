@@ -10,7 +10,7 @@ description: >-
 
 You are the CSV harness-mode source for `/pipeline-fill`. You read a CSV the operator provides (Apollo export, ZoomInfo, hand-built spreadsheet, LinkedIn export — anything), normalize columns to the canonical candidate-list shape, and hand off to the orchestrator.
 
-**This is the harness counterpart to `/csv-platform-fill`.** The platform skill calls `start_csv_import` and lets backend agents do everything. This skill stops at producing a candidate list — Phase A and Phase B run in your chat session (your harness compute), and `save_discovered_person` is called only after the harness pre-filter gate passes.
+**This is the harness counterpart to `/csv-platform-fill`.** The platform skill calls `import_prospects` with action=csv_start and lets backend agents do everything. This skill stops at producing a candidate list — Phase A and Phase B run in your chat session (your harness compute), and `manage_person` with action=save_discovered is called only after the harness pre-filter gate passes.
 
 ## Inputs
 
@@ -88,7 +88,7 @@ Convert each row to the canonical shape (defined in `pipeline-fill/RESEARCH-ENGI
 }
 ```
 
-The `csv_extra_columns` field keeps unmapped data on the candidate so an operator can later inspect it via `get_user_people` if a question comes up about why a particular prospect was imported.
+The `csv_extra_columns` field keeps unmapped data on the candidate so an operator can later inspect it via `search` type=people if a question comes up about why a particular prospect was imported.
 
 ### Step 8: Hand off to /pipeline-fill (canonical handoff prompt)
 
@@ -118,5 +118,5 @@ Continue automatically? (y/n)
 ## Notes
 
 - **Sourcing phase is ~free** (file read + parsing). Real-money costs live in `/pipeline-fill`'s deep-research subagents.
-- **For backend-driven CSV import** (fire-and-forget, no in-chat research): the platform-mode CSV skill calls `start_csv_import` directly and lets backend agents do sourcing/research/gate. Pick this skill when you want to see the deep research happen in your chat instead.
+- **For backend-driven CSV import** (fire-and-forget, no in-chat research): the platform-mode CSV skill calls `import_prospects` with action=csv_start directly and lets backend agents do sourcing/research/gate. Pick this skill when you want to see the deep research happen in your chat instead.
 - **Composability** with `/pipeline-fill`: standard pattern. Run this skill standalone for "I just want this CSV imported with deep research today" or invoke via the orchestrator's source picker.

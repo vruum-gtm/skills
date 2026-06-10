@@ -30,14 +30,14 @@ All harness source skills produce candidate lists matching this shape exactly. T
 
 **Rules:**
 - At minimum, each candidate needs **either** `linkedin_url` **or** (`name`-fields + `company`). Candidates with neither are skipped at Step 3.
-- `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's `fetch_linkedin_data` returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
+- `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
 - Field additions are additive only. Removing a field is a breaking change for source skills.
 
 ---
 
 ## MCP-availability precheck (load-bearing — runs before Step 3)
 
-Before any other Step 3 work, call `get_research_playbook(segment_id=<id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
+Before any other Step 3 work, call `fetch(type="research_playbook", id=<segment_id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
 
 > Vruum MCP not configured as a user-scoped server. Run:
 >
@@ -47,7 +47,7 @@ Before any other Step 3 work, call `get_research_playbook(segment_id=<id>)`. If 
 
 This catches the common silent-failure mode: deep-research subagents dispatch, all return `STATUS: failed` because they can't reach MCP, and the operator gets a confusing "0 enrolled, no errors" report. One MCP call upfront vs an hour of debugging.
 
-The `get_research_playbook` call also doubles as the ICP load — capture target_titles, target_industries, value_proposition, positioning_angle, ACV floor, signals_to_watch, exclusions for use in subagent dispatch prompts.
+The research_playbook fetch also doubles as the ICP load — capture target_titles, target_industries, value_proposition, positioning_angle, ACV floor, signals_to_watch, exclusions for use in subagent dispatch prompts.
 
 ---
 
@@ -56,8 +56,8 @@ The `get_research_playbook` call also doubles as the ICP load — capture target
 Per segment's candidate list:
 
 1. **MCP precheck + ICP load** (above) — abort run on failure.
-2. **Batch dedup against existing pipeline.** Call `batch_search_existing_people(queries=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
-3. **Batch company-cache check.** Collect unique company domains from surviving candidates. Call `batch_get_company_research(domains=[...])`. Returns `[{domain, cached_research, age_days}]`.
+2. **Batch dedup against existing pipeline.** Call `search(type="people", query=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
+3. **Batch company-cache check.** Collect unique company domains from surviving candidates. Call `fetch(type="company_research", id=[the domains])`. Returns `[{domain, cached_research, age_days}]`.
    - Cache hit (`cached_research != null` AND `age_days <= 90`) → company skips Phase A; the cached research carries forward.
    - Cache miss or stale (`age_days > 90`) → company joins the Phase A research queue.
 4. **Operator confirmation gate (CSV / large lists only).** If the original candidate list was >200 (CSV) or >100 (manual list), confirm count to process before continuing.
@@ -68,7 +68,7 @@ Per segment's candidate list:
 
 ## Step 4 — Phase A: company research
 
-**Concurrency cap: 10 parallel.** Phase A subagents don't call `fetch_linkedin_data` — they hit `get_company_research`, `fetch_company_website`, `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
+**Concurrency cap: 10 parallel.** Phase A subagents don't call `research` with action=linkedin_fetch — they hit `fetch` (type=company_research), `research` (action=enrich_company), `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
 
 Dispatch one `vruum-company-deep-researcher` per unique uncached company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools.
 
@@ -79,7 +79,7 @@ You are vruum-company-deep-researcher. Research this company against segment "{s
 
 company_name: {name}
 domain: {domain}
-segment_icp_summary: {one paragraph from get_research_playbook}
+segment_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars or default $10K}
 
 Run your workflow (a–i) and return the structured output block.
@@ -89,7 +89,7 @@ Each subagent returns: `company_id`, `funding_data`, `growth_metrics`, `current_
 
 **Wait for the wave to complete before Phase B.** Phase B inputs depend on Phase A's signals (or null if failed).
 
-**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness pre-filter gate then tags them `harness_gate_status: gate_inconclusive` (a fourth status alongside pass/warming/low_priority/dismiss). `save_discovered_person` is still called — the backend's `MatchAnalysisAgent` may have cached company research from earlier runs and gates them appropriately. Surface gate-inconclusive prospects in the final report so the operator can re-run the failed companies later.
+**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness pre-filter gate then tags them `harness_gate_status: gate_inconclusive` (a fourth status alongside pass/warming/low_priority/dismiss). `manage_person` action=save_discovered is still called — the backend's `MatchAnalysisAgent` may have cached company research from earlier runs and gates them appropriately. Surface gate-inconclusive prospects in the final report so the operator can re-run the failed companies later.
 
 **Inter-wave progress line.** After each wave (5–10 subagents):
 ```
@@ -101,7 +101,7 @@ Helps operators distinguish "still working" from "stuck."
 
 ## Step 5 — Phase B: prospect research
 
-**Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `fetch_linkedin_data` and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
+**Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `research` action=linkedin_fetch and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
 
 Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent file at `.claude/agents/vruum-prospect-deep-researcher.md`.
 
@@ -122,10 +122,10 @@ phase_a_signals:
   outbound_motion_score: {0|1|2 or null}
   triggers: [list or null]
 
-segment_icp_summary: {one paragraph from get_research_playbook}
+segment_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars}
 
-Run your workflow (a–k) and return the structured output block. Note: do NOT call save_discovered_person or start_outreach — those are orchestrator-only and not in your tools list.
+Run your workflow (a–k) and return the structured output block. Note: do NOT call manage_person action=save_discovered or manage_outreach action=start — those are orchestrator-only and not in your tools list.
 ```
 
 Each subagent returns: `topics_of_interest`, `recent_posts`, `opening_hooks[]` (2–3, with source URLs), `decision_maker_level` (junior/mid/senior), `email_status` (found/pending), `role_start_date`, per-prospect `triggers[]`, `STATUS`. Note: `person_id` is NOT returned here — identity resolution happens in Step 7.
@@ -139,17 +139,17 @@ Each subagent returns: `topics_of_interest`, `recent_posts`, `opening_hooks[]` (
 
 ## Step 6 — Harness pre-filter gate (orchestrator-side, pre-save)
 
-This is a **coarse pre-filter** — its job is to avoid wasted backend `save_discovered_person` calls on obvious dismisses. The **authoritative** gate is server-side `MatchAnalysisAgent.match_score >= 70` and runs inside `save_discovered_person`. The harness gate cannot override the backend gate; it can only dismiss before reaching it.
+This is a **coarse pre-filter** — its job is to avoid wasted backend save calls (`manage_person` action=save_discovered) on obvious dismisses. The **authoritative** gate is server-side `MatchAnalysisAgent.match_score >= 70` and runs inside that save call. The harness gate cannot override the backend gate; it can only dismiss before reaching it.
 
 Per surviving prospect, evaluate four criteria using the segment's playbook ICP and the Phase A + Phase B signals:
 
 ### 1. ACV class meets segment threshold?
 - `acv_class >= acv_floor_class` → pass this criterion (smb=$5K, mid=$5–50K, ent=$50K+; segment's `acv_floor` from playbook maps to a class)
-- If no → dismiss `acv_too_low`. Don't call `save_discovered_person`.
+- If no → dismiss `acv_too_low`. Don't call `manage_person` action=save_discovered.
 
 ### 2. Outbound motion or hiring signal?
 - `outbound_motion_score > 0` OR explicit hiring trigger present → pass
-- If no → flag `warming_candidate` (still call `save_discovered_person` — operator may want to warm-track them; backend match analysis tells us if the segment fit is real)
+- If no → flag `warming_candidate` (still call `manage_person` action=save_discovered — operator may want to warm-track them; backend match analysis tells us if the segment fit is real)
 
 ### 3. Decision-maker level senior?
 - `decision_maker_level == senior` → pass
@@ -158,7 +158,7 @@ Per surviving prospect, evaluate four criteria using the segment's playbook ICP 
 
 ### 4. Trigger event in last 90d?
 - 1+ trigger from Phase A (`funding`, `exec_hire`, `launch`, `m_and_a`, `partnership`) OR Phase B (`new_role`, `topical_post`, `press_mention`, `promotion`) → pass
-- If no → flag `low_priority` (still call `save_discovered_person`)
+- If no → flag `low_priority` (still call `manage_person` action=save_discovered)
 
 ### Tag each prospect:
 - `harness_gate_status: pass` — all four criteria passed
@@ -178,43 +178,46 @@ For non-dismiss outcomes, also set `dismiss_reason` to null and `flag` to the re
 Per surviving prospect:
 
 ### a. Save company research (once per company)
-If the prospect's company isn't already cached and Phase A produced fresh research, call `save_company_research(company_name=..., domain=..., funding_data=..., growth_metrics=..., current_priorities=...)`. Skip if `CACHE_HIT: true` for that company.
+If the prospect's company isn't already cached and Phase A produced fresh research, call `research(action="save_company", payload={company_name, domain, funding_data, growth_metrics, current_priorities})`. Skip if `CACHE_HIT: true` for that company.
 
 ### b. Identity resolution + person research (load-bearing — corrects Codex Finding #6)
 
-`save_person_research` requires `first_name` + `last_name`, NOT `name`. `save_discovered_person` requires `person_id` from a prior save step. So Step 7 is a 2-step backend dance:
+`research` action=save_person requires `first_name` + `last_name` in the payload, NOT `name`. `manage_person` action=save_discovered requires `person_id` from a prior save step. So Step 7 is a 2-step backend dance:
 
 1. **Split full_name** if `first_name`/`last_name` aren't already set:
    - Last-space heuristic: split on the last space. `Jane Smith` → first=`Jane`, last=`Smith`. `Jane van der Merwe` → first=`Jane`, last=`van der Merwe`.
-   - **Override with Phase B canonical names** if `fetch_linkedin_data` returned them. LinkedIn's `first_name`/`last_name` fields are authoritative; the heuristic is a fallback for candidates without `linkedin_url`.
+   - **Override with Phase B canonical names** if the linkedin_fetch research call returned them. LinkedIn's `first_name`/`last_name` fields are authoritative; the heuristic is a fallback for candidates without `linkedin_url`.
 
-2. **Call `save_person_research(...)`.** The backend now requires you to identify the company unambiguously — pick ONE of these two paths:
+2. **Call `research` with action=save_person.** The backend now requires you to identify the company unambiguously — pick ONE of these two paths:
 
-   **Path A (preferred): pass `company_id`.** Run `save_company_research(...)` first, capture the returned `company_id`, then pass it here.
+   **Path A (preferred): pass `company_id`.** Run the save_company call (`research` action=save_company) first, capture the returned `company_id`, then pass it in the payload here.
 
-   **Path B (when Path A isn't done yet): pass `company_name` + at least one anchor.** Required anchors are any of `company_domain`, `company_website`, or `company_linkedin_url`. The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url` (e.g. `https://linkedin.com/company/microsoft`). If you ran `fetch_linkedin_data(include_company=true)`, the separate company response carries `website` and `industry`. Domain can be derived from website (e.g. `microsoft.com` from `https://microsoft.com`) or from the prospect's verified work email.
+   **Path B (when Path A isn't done yet): pass `company_name` + at least one anchor.** Required anchors are any of `company_domain`, `company_website`, or `company_linkedin_url`. The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url` (e.g. `https://linkedin.com/company/microsoft`). If you ran linkedin_fetch with `include_company: true` in the payload, the separate company response carries `website` and `industry`. Domain can be derived from website (e.g. `microsoft.com` from `https://microsoft.com`) or from the prospect's verified work email.
 
    **Anchor-less name-only saves are rejected with HTTP 422.** This was hardened to stop orphan stub creation in the companies table — name-only saves were silently producing duplicate rows for common names like Microsoft.
 
    Example call:
    ```
-   save_person_research(
-     first_name=..., last_name=...,
-     email=..., linkedin_url=...,
-     # ONE of:
-     company_id=<from save_company_research>
-     # OR:
-     company_name=..., company_linkedin_url=...,  # at least one anchor
-     # ...rest of research fields
+   research(
+     action="save_person",
+     payload={
+       first_name=..., last_name=...,
+       email=..., linkedin_url=...,
+       # ONE of:
+       company_id=<from the save_company call>
+       # OR:
+       company_name=..., company_linkedin_url=...,  # at least one anchor
+       # ...rest of research fields
+     }
    )
    ```
 
-   - If the prospect already had `person_id` set on the candidate (e.g. operator pasted a Vruum person UUID), pass it explicitly: `save_person_research(person_id=..., ...)` — backend updates rather than creating a new record.
+   - If the prospect already had `person_id` set on the candidate (e.g. operator pasted a Vruum person UUID), pass it explicitly in the payload: `research(action="save_person", payload={person_id: ..., ...})` — backend updates rather than creating a new record.
    - The response includes the `person_id`. Capture it for step c.
 
 ### c. Save discovered person (the backend authoritative gate runs here)
 
-Call `save_discovered_person(person_id=<from b>, segment_id=...)`. This:
+Call `manage_person(action="save_discovered", payload={person_id: <from b>, segment_id: ...})`. This:
 - Runs server-side `analyze_person_match` + signal eval
 - Returns `match_score` (0–100) and `quality_gate_pass` (bool, true iff `match_score >= 70`)
 - Writes the `company_people` row that puts the prospect into the segment
@@ -225,7 +228,7 @@ Call `save_discovered_person(person_id=<from b>, segment_id=...)`. This:
 
 ### d. Bulk enrollment (only after all prospects saved)
 
-Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND `mode == save-and-enroll`. Then call `bulk_start_outreach(person_ids=[...], segment_id=...)` ONCE at the end of Step 7.
+Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={segment_id: ...})` ONCE at the end of Step 7.
 
 - Per-prospect outcomes are returned (enrolled | skipped | failed). Surface per-prospect failures in the report.
 - If `harness_gate_status` is `warming` or `low_priority`, exclude from the bulk enroll list. Operator decides on review.
@@ -285,7 +288,7 @@ For multi-segment runs, group the report by segment and include a totals summary
 - **Manual-list cap** — if >100 lines pasted, orchestrator asks "{N} prospects pasted — process all, or first M? (a/N)".
 - **CSV >200 rows** — same prompt at Step 5 of csv-pipeline-fill.
 - **LinkedIn rate-limit (Unipile 429)** — Phase B subagent dismisses with `linkedin_data_unavailable`; orchestrator surfaces in report; operator reruns later.
-- **Unicode multi-token surnames** — `Maria Del Carmen Garcia`: heuristic splits to first=`Maria Del Carmen`, last=`Garcia` (last space wins). When `linkedin_url` is present, `fetch_linkedin_data` overrides with canonical names. Imperfect for candidates without LinkedIn URL — operator can edit via `update_person_contact` post-import.
+- **Unicode multi-token surnames** — `Maria Del Carmen Garcia`: heuristic splits to first=`Maria Del Carmen`, last=`Garcia` (last space wins). When `linkedin_url` is present, the linkedin_fetch research call overrides with canonical names. Imperfect for candidates without LinkedIn URL — operator can edit via `manage_person` action=update_contact post-import.
 
 ---
 

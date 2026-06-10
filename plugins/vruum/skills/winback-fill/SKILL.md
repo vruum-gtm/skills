@@ -24,10 +24,10 @@ The impact scoreboard and the `account_stage='churned'`/`'dormant'` tagging let 
 ## Where heavy logic lives
 
 [`COHORT-QUERIES.md`](./COHORT-QUERIES.md) — three Vruum-MCP cohort recipes
-(all `get_deals` + post-filter; tenant scope is automatic from your session):
+(all `search` type=deals + post-filter; tenant scope is automatic from your session):
 1. **90-day silent-deal revival** (default): lost deals >90d old, person still at company, loss reason not terminal
 2. **Champion-follows-you**: former champion moved to a new company (re-targeted at new co via `get_person_360.current_positions`)
-3. **Trigger-driven winback**: surfaced via fresh signals on `get_company_research` (new exec, funding, press)
+3. **Trigger-driven winback**: surfaced via fresh signals on `fetch` type=company_research (new exec, funding, press)
 
 Start with cohort 1 unless you specify otherwise.
 
@@ -35,13 +35,13 @@ Start with cohort 1 unless you specify otherwise.
 
 Step 1 — Read scoreboard.
 ```
-get_account_impact_scoreboard(window_days=90)
+fetch(type="scoreboard", subtype="impact", filters={"window_days": 90})
 ```
 Surface practice rollups. Empty state → fall through to day-1 heuristic.
 
 Step 2 — Build the cohort using the recipes in `COHORT-QUERIES.md`. All
-recipes use `get_deals` + post-filter via the Vruum MCP; tenant scope is
-automatic from your authenticated session. Pick a variant per your intent
+recipes use `search` type=deals + post-filter via the Vruum MCP; tenant scope
+is automatic from your authenticated session. Pick a variant per your intent
 (default: variant 1).
 
 For variant 1 (silent-deal revival), the cohort criteria:
@@ -50,13 +50,13 @@ For variant 1 (silent-deal revival), the cohort criteria:
 - `loss_reason NOT IN ('no_fit', 'no_budget_permanent')` (these are terminal — don't re-pitch)
 - Person is still surfaceable via `get_person_360` (still at company)
 - No open deal currently exists on that person (post-filter against
-  `get_deals(outcome=None)`)
+  `search` type=deals filters={outcome: None})
 
 Limit 50. Order by `stage_changed_at DESC` (most-recent loss first — freshest memory of the conversation).
 
 Step 3 — Per-account enrichment.
 - `get_person_360` — what was the original conversation? `analysis` JSONB on the old deal often captures objection patterns.
-- `get_company_research` — has anything changed at the company? New exec? Funding? Recent news?
+- `fetch` type=company_research — has anything changed at the company? New exec? Funding? Recent news?
 - `accounts.account_stage` — if `churned`, the account has been flagged as dead. Skip or down-rank unless variant 2/3 applies.
 
 Step 4 — Score and rank.
@@ -84,18 +84,21 @@ If no hook can be generated → defer the row. Warm via marketing/content first,
 
 Step 6 — Hand off. Two options:
 - **Option A (recommended)**: Approve the list; run `/pipeline-fill` with the prospect_list for harness deep research + outreach. Plans get `outreach_plans.tag = bowtie_pilot:winback`.
-- **Option B**: Direct `start_outreach` with a winback-flavored segment (pre-create a `winback_<your-tenant>` segment — tone: empathetic, no apology, lead with what changed since last conversation).
+- **Option B**: Direct `manage_outreach` action=start with a winback-flavored segment (pre-create a `winback_<your-tenant>` segment — tone: empathetic, no apology, lead with what changed since last conversation).
 
-Step 7 — Success tracking (auto). The calendar webhook fires:
+Step 7 — Success tracking (auto). The calendar webhook records the impact event, equivalent to:
 ```
-record_impact_event(
-  practice='winback',
-  event_type='winback_meeting_booked',
-  value_delivered_numeric=deal.estimated_value,
-  ...
+manage_account(
+  action="record_impact",
+  payload={
+    practice: 'winback',
+    event_type: 'winback_meeting_booked',
+    value_delivered_numeric: deal.estimated_value,
+    ...
+  }
 )
 ```
-when a meeting is booked on a plan tagged `bowtie_pilot:winback`. You do NOT manually fire for tagged plans. After 30 days, `get_account_impact_scoreboard` should show winback `event_count` > 0.
+when a meeting is booked on a plan tagged `bowtie_pilot:winback`. You do NOT manually fire for tagged plans. After 30 days, `fetch` type=scoreboard subtype=impact should show winback `event_count` > 0.
 
 ## When NOT to use this skill
 
@@ -111,4 +114,4 @@ See `docs/ACCOUNT-LIFECYCLE-VOCABULARY.md` for the 8 canonical account-lifecycle
 
 ## Backend authoritative gate
 
-Same pattern as `/expansion-fill`: harness-mode uplift; the backend's `record_impact_event` is the authoritative write surface with dedupe.
+Same pattern as `/expansion-fill`: harness-mode uplift; the backend's impact-event write (`manage_account` action=record_impact) is the authoritative surface with dedupe.

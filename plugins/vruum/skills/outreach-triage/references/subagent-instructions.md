@@ -74,11 +74,11 @@ If personalization is surface level or basic, and you have the tools to go deepe
 
 If a message needs better personalization or you need to verify something, you have access to:
 
-- **Knowledge base** (`search_knowledge_base`): Search the company's uploaded sales docs — positioning, case studies, battlecards, objection handling, process docs. Browse without filters first to see what's available, then narrow with `doc_type` or `query`. Use `document_id` or `include_content: true` to read full content. This is your FIRST stop for company-specific messaging guidance, proof points, and competitive positioning.
+- **Knowledge base** (`search` with type=kb): Search the company's uploaded sales docs — positioning, case studies, battlecards, objection handling, process docs. Browse with no extra filters first to see what's available, then narrow with the `doc_type` or `query` filters. Use the `document_id` or `include_content: true` filters to read full content. This is your FIRST stop for company-specific messaging guidance, proof points, and competitive positioning.
 - **Web search**: Search for recent news about the prospect's company, their recent activity, industry trends relevant to them
-- **LinkedIn data** (`fetch_linkedin_data`): Pull the prospect's recent posts if not already in the review data
+- **LinkedIn data** (`research` with action=linkedin_fetch): Pull the prospect's recent posts if not already in the review data
 - **Obsidian vault** (Read/Grep on `/sessions/amazing-lucid-shannon/mnt/Jon's Neural Net/`): Search for notes on this vertical, company, or prospect. The vault contains pricing frameworks, competitive intel, and vertical playbooks.
-- **Company research** (`get_company_research`, `fetch_company_website`): Get deeper company context if the match analysis feels thin
+- **Company research** (`fetch` with type=company_research; `research` with action=enrich_company): Get deeper company context if the match analysis feels thin
 
 Use these tools when:
 - The draft's personalization is surface-level and you can find something better
@@ -91,7 +91,7 @@ Do NOT use these tools for every message. Only when the draft needs improvement 
 
 ## Step 4: Edit if needed
 
-If the message needs changes, rewrite it and apply the edit using `edit_message` with the message_id and new content.
+If the message needs changes, rewrite it and apply the edit using `manage_messages` with action=edit, the message id, and the new content in the payload.
 
 When rewriting:
 - Keep the same strategic intent (don't change a T2 into a T4)
@@ -156,7 +156,7 @@ RESEARCH_DONE: {list of extra research you did, or "none"}
 
 **EDITED** when:
 - Message had fixable issues (AI tells, weak personalization, minor repetition, wrong CTA format)
-- You've applied the fix via edit_message
+- You've applied the fix via manage_messages (action=edit)
 - The rewritten version passes all checks
 
 **FLAG** when:

@@ -9,7 +9,7 @@ tenant bind to choose.
 
 ```
 # Step 1: pull closed-lost deals (scoped to your session's tenant)
-lost = get_deals(outcome="lost", limit=200)
+lost = search(type="deals", filters={"outcome": "lost"}, limit=200)
 
 # Step 2: keep deals lost between 90 days and 18 months ago
 ninety_days_ago = now() - 90 days
@@ -26,7 +26,7 @@ revivable = [
 ]
 
 # Step 4: drop people who currently have an OPEN deal (NULL outcome)
-open_deals = get_deals(outcome=None, limit=500)
+open_deals = search(type="deals", filters={"outcome": None}, limit=500)
 open_person_ids = { d.person_id for d in open_deals.deals }
 candidates = [d for d in revivable if d.person_id not in open_person_ids]
 ```
@@ -40,7 +40,7 @@ thanks" buyer from being re-pitched while the rejection is still fresh.
 
 Why this works without a DB query:
 
-- `get_deals` is tenant-scoped server-side.
+- `search` type=deals is tenant-scoped server-side.
 - The old `company_people` JOIN (to resolve account from person) is replaced
   by `get_person_360` in the skill's Step 3 enrichment — call it per
   surfaced person; `current_positions[0].company_id` is the account.
@@ -52,8 +52,8 @@ The "warmest cold-outreach possible" play.
 
 ```
 # Step 1: pull historic deals (lost OR won, since won-then-churned applies)
-historic_lost = get_deals(outcome="lost", limit=200).deals
-historic_won  = get_deals(outcome="won",  limit=200).deals
+historic_lost = search(type="deals", filters={"outcome": "lost"}, limit=200).deals
+historic_won  = search(type="deals", filters={"outcome": "won"},  limit=200).deals
 former_buyer_person_ids = {
     d.person_id for d in (historic_lost + historic_won)
     if parse(d.stage_changed_at or d.actual_close_date) < (now() - 60 days)
@@ -80,12 +80,12 @@ funding, press, layoff at a competitor) and use the trigger as the revival
 hook.
 
 ```
-# Per surfaced account (from Variant 1), call get_company_research to see
+# Per surfaced account (from Variant 1), fetch type=company_research to see
 # if any recent news/event was captured in the last 14 days. The harness
 # does not currently expose a direct "list firing triggers" tool in the
 # public MCP — read recent triggers off the company_research payload.
 for d in variant_1_candidates:
-    research = get_company_research(company_id=d.account_company_id)
+    research = fetch(type="company_research", id=d.account_company_id)
     fresh_triggers = [
         t for t in (research.recent_signals or [])
         if (now() - parse(t.fired_at)) < 14 days
@@ -95,13 +95,13 @@ for d in variant_1_candidates:
         ...
 ```
 
-If `get_company_research` returns no recent signals, this variant degrades
+If the company_research fetch returns no recent signals, this variant degrades
 to Variant 1 silently — no harm done.
 
 ## Why these recipes are safe
 
 All three variants:
-- Run through `get_deals` / `get_person_360` / `get_company_research`, all of
+- Run through `search` type=deals / `get_person_360` / `fetch` type=company_research, all of
   which derive `user_company_id` from your authenticated session. You CANNOT
   choose a different tenant.
 - Exclude terminal loss reasons (`no_fit`, `no_budget_permanent`) in

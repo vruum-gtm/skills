@@ -67,20 +67,22 @@ Reactions are usually KEEP. Only edit if reaction_type is wrong for the post con
 ### 2e. Budget check
 If `budget_status` shows the sender account near daily limits, note it in REASONING (the operator may want to defer some approvals).
 
-## Step 3: Apply the uplift via manage_engagement
+## Step 3: Apply the uplift via manage_engagements
 
-When RECOMMENDATION=uplifted, write back via `manage_engagement`:
+When RECOMMENDATION=uplifted, write back via `manage_engagements`:
 
 ```
-manage_engagement(
-  engagement_ids="<id>",
+manage_engagements(
   action="edit",
-  content="<your uplifted comment>",
-  polish_provenance={
-    "source": "skill",
-    "model": "<your model — claude-opus-4-7 / claude-sonnet-4-6 / etc.>",
-    "at": "<ISO8601 timestamp>",
-    "rewrite_notes": "<one line: what changed and why>"
+  id="<id>",
+  payload={
+    "content": "<your uplifted comment>",
+    "polish_provenance": {
+      "source": "skill",
+      "model": "<your model — claude-opus-4-7 / claude-sonnet-4-6 / etc.>",
+      "at": "<ISO8601 timestamp>",
+      "rewrite_notes": "<one line: what changed and why>"
+    }
   }
 )
 ```
@@ -116,6 +118,6 @@ VALIDATOR_FAILURES_FIXED: {comma-separated codes you cleared, or "none"}
 ## Error handling
 
 - **MCP call failure**: retry once. If it still fails, set RECOMMENDATION=flag with REASONING="MCP error: <message>" and continue with the next item. Don't abort the whole batch.
-- **manage_engagement write fails (idempotency)**: report failure in REASONING; the operator can re-run. The skill keeps partial state in `/tmp/engagement-triage-$$/pending.jsonl` (parent skill responsibility).
+- **manage_engagements write fails (idempotency)**: report failure in REASONING; the operator can re-run. The skill keeps partial state in `/tmp/engagement-triage-$$/pending.jsonl` (parent skill responsibility).
 - **No polished_floor AND no first_draft AND no content**: the queue row is malformed; flag with REASONING="malformed_queue_row, no draft to uplift".
 - **Empty dossier + empty post text**: flag with REASONING="no grounding available".

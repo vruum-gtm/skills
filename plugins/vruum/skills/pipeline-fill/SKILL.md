@@ -29,7 +29,7 @@ When you reach Step 3, **stop and read** `RESEARCH-ENGINE.md`. That doc is the c
 
 This skill uses two subagents (defined in `.claude/agents/`):
 - `vruum-company-deep-researcher` — Phase A, one per unique company in the batch (max 10 in parallel)
-- `vruum-prospect-deep-researcher` — Phase B, one per person (max 5 in parallel — Phase B is rate-limited because it calls `fetch_linkedin_data`)
+- `vruum-prospect-deep-researcher` — Phase B, one per person (max 5 in parallel — Phase B is rate-limited because it calls `research` action=linkedin_fetch)
 
 ### MCP access requirements (load-bearing)
 
@@ -39,7 +39,7 @@ Subagents need access to the Vruum MCP server. Register it once in your AI assis
 - **Codex CLI**: `~/.codex/config.toml` → `[mcp_servers.vruum]` with `url = "https://api.vruum.ai/mcp"`
 - **Other**: connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow)
 
-The orchestrator's MCP precheck at the top of Step 3 (`get_research_playbook` call) catches misconfiguration upfront. Don't skip it.
+The orchestrator's MCP precheck at the top of Step 3 (the `fetch` type=research_playbook call) catches misconfiguration upfront. Don't skip it.
 
 ### Dispatch methods (in order of preference)
 
@@ -56,7 +56,7 @@ The orchestrator's MCP precheck at the top of Step 3 (`get_research_playbook` ca
 
 ## Workflow — Step 1: Show pipeline status & pick segments
 
-Call `manage_sales_nav_searches(action="list")` + `get_outreach_stats` for queue depth + `get_campaigns` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
+Call `import_prospects(action="sales_nav_searches", payload={action: "list"})` + `fetch(type="stats", subtype="outreach")` for queue depth + `search(type="campaigns")` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
 
 ```
 Pipeline status:
@@ -100,8 +100,8 @@ The conditional rendering happens at package-build time, not at skill-runtime �
 
 Per source pick, dispatch:
 
-- `sales-nav-platform` → invoke `/sales-nav-platform-fill` (calls `import_from_sales_nav`; backend handles everything; **skip Steps 3-8 of this skill entirely** — backend agents own the rest).
-- `csv-platform` → invoke `/csv-platform-fill` (calls `start_csv_import`; backend handles everything; same — skip Steps 3-8).
+- `sales-nav-platform` → invoke `/sales-nav-platform-fill` (calls `import_prospects` action=sales_nav_import; backend handles everything; **skip Steps 3-8 of this skill entirely** — backend agents own the rest).
+- `csv-platform` → invoke `/csv-platform-fill` (calls `import_prospects` action=csv_start; backend handles everything; same — skip Steps 3-8).
 - `sales-nav-deep` → invoke `/sales-nav-deep-fill` to produce a candidate list, then continue to Step 3 with it.
 - `yc` → invoke `/yc-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
 - `csv` → invoke `/csv-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
@@ -116,7 +116,7 @@ Discovery mode covers two paths off the same prompt:
 **Path A — operator pastes candidates** (you already know who you want)
 Tolerant line parser, candidates produced directly:
 
-- **Line is a LinkedIn URL** (matches `^https?://(www\.)?linkedin\.com/in/[^/?]+/?(\?.*)?$`) → set `linkedin_url`, leave `name` and `company` null. Phase B will fill them via `fetch_linkedin_data`.
+- **Line is a LinkedIn URL** (matches `^https?://(www\.)?linkedin\.com/in/[^/?]+/?(\?.*)?$`) → set `linkedin_url`, leave `name` and `company` null. Phase B will fill them via the linkedin_fetch research call.
 - **Line has comma(s)** → split as `name, company[, linkedin_url][, email]`. If 4 fields, last is email. If 3 fields, last is linkedin_url IF it matches the LinkedIn URL pattern, else interpret as email if it has `@`, else treat as a 2-field line + extra junk.
 - **Line is just text** → treat as `full_name`, prompt operator: "what company for {full_name}?". If the operator gets prompted for >3 lines, ask once "set company={X} for all unspecified?" to batch.
 
@@ -127,13 +127,13 @@ Drop blank lines and lines starting with `#` (treat as comments).
 **Path B — operator describes an ICP** (you want the harness to discover candidates)
 Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "directors of operations at MSPs in DFW, recently posted about hiring". Harness sources candidates from scratch:
 
-1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `get_campaign` and `get_company_profile`) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
+1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `fetch` type=campaign and `fetch` type=settings subtype=profile) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
 2. **Source companies first** — use harness tools to find candidate companies matching the brief:
    - `WebSearch` for funding announcements, news, lists ("Series A SaaS 2026", "TechCrunch Series B SaaS announcements")
    - `WebFetch` on Crunchbase / PitchBook / company directories
-   - `mcp__vruum__search_linkedin_people` for company-fitting roles when the brief is people-shaped (e.g. "VPs of Eng at Series A SaaS")
-3. **Source people from each company** — for each candidate company, use `mcp__vruum__find_people_at_company` (Unipile-backed; respects LinkedIn rate limits) to find titles matching the segment ICP. Cap at ~5 people per company to spread the discovery surface.
-4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search_existing_people` so you don't research someone the segment already has.
+   - `mcp__vruum__import_prospects` with action=sales_nav_search (payload={keywords, title, limit}) for company-fitting roles when the brief is people-shaped (e.g. "VPs of Eng at Series A SaaS")
+3. **Source people from each company** — for each candidate company, use `mcp__vruum__search` with type=companies and filters={domain, seniority} (Unipile-backed; respects LinkedIn rate limits) to find titles matching the segment ICP. Cap at ~5 people per company to spread the discovery surface.
+4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search` with type=people and a name/company keyword query so you don't research someone the segment already has.
 5. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
 
 Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.

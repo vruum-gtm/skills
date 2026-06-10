@@ -17,7 +17,7 @@ Deal review requires cross-referencing multiple data sources per deal: stakehold
 ## Subagent architecture
 
 This skill uses the custom agent `vruum-deal-reviewer` (bundled at `agents/vruum-deal-reviewer.md`). That agent has:
-- **Read-only** Vruum MCP access (`get_deal`, `get_deal_360`, `get_deal_alerts`, `inspect_pipeline`, `get_person_360`, `get_company_research`, `get_account_state`). It has NO write tools by design — review is analysis, not mutation. Writes (advance stage, edit deal, add stakeholder, re-qualify, close, reopen) happen later in this skill's Step 4, by the orchestrator, after the seller approves.
+- **Read-only** Vruum MCP access (`fetch` for deal, deal_alerts, company_research, and account_state reads; `search` for deal lists; plus the composites `get_deal_360`, `inspect_pipeline`, `get_person_360`). It has NO write tools (no `manage_deal`) by design — review is analysis, not mutation. Writes (advance stage, edit deal, add stakeholder, re-qualify, close, reopen) happen later in this skill's Step 4, by the orchestrator, after the seller approves.
 - Web search for prospect/company research
 - Complete deal review instructions baked into its system prompt
 
@@ -32,7 +32,7 @@ For small reviews (3 or fewer flagged deals) or when subagents can't access MCP,
 Call two MCP tools to understand the current state:
 
 1. `inspect_pipeline` — returns top at-risk deals with risk scores, risk factors, days in stage
-2. `get_deal_alerts` — returns all active alerts (silence 7+ days, overdue next steps, slippage past close date)
+2. `fetch` with type=deal_alerts — returns all active alerts (silence 7+ days, overdue next steps, slippage past close date)
 
 Combine the results into a prioritized triage list. Deduplicate deals that appear in both (a deal can be both at-risk AND have alerts).
 
@@ -44,7 +44,7 @@ Present a brief overview:
 
 ### Step 2: Dispatch parallel subagents
 
-For each unique flagged deal (from `inspect_pipeline` + `get_deal_alerts`, max 7), spawn a `vruum-deal-reviewer` subagent with `run_in_background=true`.
+For each unique flagged deal (from `inspect_pipeline` + the deal_alerts fetch, max 7), spawn a `vruum-deal-reviewer` subagent with `run_in_background=true`.
 
 Each subagent prompt should include:
 - The `deal_id`
@@ -53,10 +53,10 @@ Each subagent prompt should include:
 - Instructions to follow the subagent workflow below
 
 **Subagent workflow** (each subagent runs read-only and independently — its tool surface excludes deal writes by design; mutation happens later in Step 4 with the seller's approval):
-1. Call `get_deal_360` for the full deal context in one call (deal info, stakeholders, MEDDIC qualification state, recent activity timeline). If the consolidated endpoint isn't available in your tool list, fall back to `get_deal` — the deal row carries `qualification` and `qualification_score` when previously computed.
-2. **Read** `qualification` / `qualification_score` from the response — do NOT call `qualify_deal` from the reviewer. `qualify_deal` writes a fresh MEDDIC JSONB (an LLM call + a DB write); the reviewer is read-only. If `qualification` is null, the score is < 40, or the last qualification is older than 30 days, the reviewer emits a `re_qualify` recommendation and the orchestrator (this skill) runs `qualify_deal` ONLY after the seller approves in Step 4.
+1. Call `get_deal_360` for the full deal context in one call (deal info, stakeholders, MEDDIC qualification state, recent activity timeline). If the consolidated endpoint isn't available in your tool list, fall back to `fetch` with type=deal — the deal row carries `qualification` and `qualification_score` when previously computed.
+2. **Read** `qualification` / `qualification_score` from the response — do NOT qualify from the reviewer. `manage_deal` with action=qualify writes a fresh MEDDIC JSONB (an LLM call + a DB write); the reviewer is read-only. If `qualification` is null, the score is < 40, or the last qualification is older than 30 days, the reviewer emits a `re_qualify` recommendation and the orchestrator (this skill) runs `manage_deal` action=qualify ONLY after the seller approves in Step 4.
 3. Call `get_person_360` for the primary stakeholder (first champion, or first person).
-4. Call `get_account_state` for the deal's account stage + health. If 404 (no row yet), default to `prospect` / null health.
+4. Call `fetch` with type=account_state for the deal's account stage + health. If 404 (no row yet), default to `prospect` / null health.
 5. Return a structured summary in this exact format:
 
 ```
@@ -94,18 +94,18 @@ For each deal, show the structured summary. Highlight critical alerts in bold.
 
 After presenting results, the user can request actions. Execute them using MCP tools:
 
-- **Advance stage** → `update_deal` with new stage
-- **Set next step** → `update_deal` with `next_step` + `next_step_due_at`
-- **Add stakeholder** → `manage_deal_stakeholders` with action='add'
-- **Re-qualify** → `qualify_deal` (runs MEDDIC analysis again)
-- **Close deal** → `record_deal_outcome` with outcome (won/lost/stalled)
-- **Reopen deal** → `reopen_deal` with desired stage
-- **Mark stalled** → `update_deal` with stage='stalled'
+- **Advance stage** → `manage_deal` action=stage with payload={stage}
+- **Set next step** → `manage_deal` action=update with payload={next_step, next_step_due_at}
+- **Add stakeholder** → `manage_deal` action=stakeholders with payload={action: 'add', person_id, role}
+- **Re-qualify** → `manage_deal` action=qualify (runs MEDDIC analysis again)
+- **Close deal** → `manage_deal` action=won or action=lost (payload carries win_factors / loss_reason)
+- **Reopen deal** → `manage_deal` action=reopen with payload={stage}
+- **Mark stalled** → `manage_deal` action=stalled (records the stalled outcome; payload optional)
 
 For batch actions ("advance all deals in proposal"), confirm with the user before executing.
 
 ## Error handling
 
 - If a subagent fails (LLM rate limit, timeout, tool error): present results for successful subagents, note failures
-- If `inspect_pipeline` or `get_deal_alerts` fails: fall back to `get_deals` and manually check `updated_at` for staleness
+- If `inspect_pipeline` or the deal_alerts fetch fails: fall back to `search` with type=deals and manually check `updated_at` for staleness
 - Never block the entire triage on a single failure

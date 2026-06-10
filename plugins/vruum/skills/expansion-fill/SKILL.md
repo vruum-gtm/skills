@@ -16,31 +16,31 @@ The post-sale side (Onboarding → Adoption → Expansion → Win-back) is where
 
 ## Where heavy logic lives
 
-[`COHORT-QUERIES.md`](./COHORT-QUERIES.md) — the cohort recipes (Vruum-MCP harness flow + scoring rationale). Read it before running the workflow if you need to understand or tweak the cohort definition. All recipes use `get_deals` + post-filter; tenant scope is automatic from your session.
+[`COHORT-QUERIES.md`](./COHORT-QUERIES.md) — the cohort recipes (Vruum-MCP harness flow + scoring rationale). Read it before running the workflow if you need to understand or tweak the cohort definition. All recipes use `search` type=deals + post-filter; tenant scope is automatic from your session.
 
 ## Workflow
 
 Step 1 — Read the impact scoreboard.
 ```
-get_account_impact_scoreboard(window_days=90)
+fetch(type="scoreboard", subtype="impact", filters={"window_days": 90})
 ```
 - If `state == "no_events_yet"`: no impact data yet — fall through to the cohort SQL below to use the day-1 heuristic. Mention that the scoreboard is empty so you understand why this is running off deal data not impact events.
 - Otherwise: surface the practice rollups so you see current state.
 
 Step 2 — Build the cohort.
 Follow the **primary cohort** recipe in `COHORT-QUERIES.md`. The recipe runs
-`get_deals(outcome="won")` and post-filters in-memory; tenant scope is
-automatic from your authenticated session. Cohort criteria:
+`search(type="deals", filters={"outcome": "won"})` and post-filters in-memory;
+tenant scope is automatic from your authenticated session. Cohort criteria:
 - A deal closed `won` more than 60 days ago AND
 - No open deal exists on the same person now (post-filter against
-  `get_deals(outcome=None)`) AND
+  `search` type=deals filters={outcome: None}) AND
 - The person is still surfaceable via `get_person_360` (Step 3 enrichment).
 
 Limit 50. Order by `actual_close_date DESC` (most recently won first — freshest relationship).
 
 Step 3 — Per-account enrichment. For each surfaced (person, company):
 - `get_person_360(person_id=<id>)` — pulls current title, recent activity, last touch, deal history
-- `get_company_research(company_id=<id>)` — pulls firmographics, recent news/triggers
+- `fetch(type="company_research", id=<company domain>)` — pulls firmographics, recent news/triggers
 
 Step 4 — Score and rank. Within the cohort, rank by:
 - (a) **Renewal pressure** — `accounts.renewal_at` within 60-180 days → up-rank
@@ -60,24 +60,27 @@ Step 5 — Surface a ranked table:
 | 1    | Acme    | Tyler T  | adopt  | 85     | 47d     | 3 new dept LinkedIns past 30d |
 ```
 
-For each row, include a one-line "hook" — a specific recent observation from `get_person_360` or `get_company_research` (new hire, new dept, news event, product usage signal) that frames the expansion conversation. **Never push expansion without a hook** — generic "checking in" outreach kills relationships.
+For each row, include a one-line "hook" — a specific recent observation from `get_person_360` or `fetch` type=company_research (new hire, new dept, news event, product usage signal) that frames the expansion conversation. **Never push expansion without a hook** — generic "checking in" outreach kills relationships.
 
 Step 6 — Hand off to outreach. Two options:
 - **Option A (recommended)**: Approve the ranked list, then for each account: run `/pipeline-fill` with that prospect_list — same Sales Nav harness flow, just sourced from the expansion cohort instead of cold. Tag the resulting `outreach_plans.tag` with `bowtie_pilot:expansion` so success-tracking finds them.
-- **Option B**: Direct `start_outreach` with an expansion-flavored segment (pre-create an `expansion_<your-tenant>` segment with the right tone — formal, ROI-focused, no opener-hooks since the customer already knows you).
+- **Option B**: Direct `manage_outreach` action=start with an expansion-flavored segment (pre-create an `expansion_<your-tenant>` segment with the right tone — formal, ROI-focused, no opener-hooks since the customer already knows you).
 
-Step 7 — Success tracking (auto). When a calendar webhook fires a `meeting_booked` event on an outreach plan tagged `bowtie_pilot:expansion`, the webhook handler in `backend/app/domains/calendar/` auto-fires:
+Step 7 — Success tracking (auto). When a calendar webhook fires a `meeting_booked` event on an outreach plan tagged `bowtie_pilot:expansion`, the webhook handler in `backend/app/domains/calendar/` auto-records the impact event, equivalent to:
 ```
-record_impact_event(
-  practice='expansion',
-  event_type='expansion_meeting_booked',
-  value_delivered_numeric=deal.estimated_value,
-  ...
+manage_account(
+  action="record_impact",
+  payload={
+    practice: 'expansion',
+    event_type: 'expansion_meeting_booked',
+    value_delivered_numeric: deal.estimated_value,
+    ...
+  }
 )
 ```
-You do NOT manually invoke `record_impact_event` for tagged plans. If a meeting is booked outside Vruum (manual scheduling, calendar tool not connected), manually invoke `record_impact_event` from the person 360 Activity tab.
+You do NOT manually record the impact event for tagged plans. If a meeting is booked outside Vruum (manual scheduling, calendar tool not connected), record it manually via `manage_account` action=record_impact from the person 360 Activity tab.
 
-After 30 days, run `get_account_impact_scoreboard` to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching booked deal values.
+After 30 days, run `fetch` type=scoreboard subtype=impact to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching booked deal values.
 
 ## When NOT to use this skill
 
@@ -92,4 +95,4 @@ See `docs/ACCOUNT-LIFECYCLE-VOCABULARY.md` for the 8 canonical account-lifecycle
 
 ## Backend authoritative gate
 
-This skill is harness-mode: the harness picks the cohort, scores, and ranks. The backend's authoritative gate is `record_impact_event` itself — the dedupe key `(user_company_id, company_id, activity_type, source_type, source_id)` prevents double-write. The harness is uplift, not the SLA floor.
+This skill is harness-mode: the harness picks the cohort, scores, and ranks. The backend's authoritative gate is the impact-event write itself (`manage_account` action=record_impact) — the dedupe key `(user_company_id, company_id, activity_type, source_type, source_id)` prevents double-write. The harness is uplift, not the SLA floor.

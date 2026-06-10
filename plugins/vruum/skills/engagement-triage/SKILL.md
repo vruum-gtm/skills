@@ -8,7 +8,7 @@ description: >-
 ---
 ## MCP smoke test (run early)
 
-Before triaging, confirm Vruum MCP is reachable. Call `get_marketing_overview` as a lightweight liveness check. On failure, surface this error and stop:
+Before triaging, confirm Vruum MCP is reachable. Call `fetch` with type=marketing, subtype=overview as a lightweight liveness check. On failure, surface this error and stop:
 
 > Vruum MCP is not connected. Set up the MCP server (see Vruum docs) and re-invoke. Subagent dispatch needs user-scope MCP — cloud-mode MCP is not inherited.
 
@@ -20,7 +20,7 @@ You review the user's pending LinkedIn engagement drafts (warming comments, nurt
 
 ## Why this is a skill and not just "call the tool"
 
-The backend produces a research dossier + shippable-floor comment for every engagement (the `polished_floor` field — quality SLA for all four front doors per `project_four_front_doors_architecture`). The skill's job is to UPLIFT that floor into a great comment using the operator's Claude subscription, then write the polished result back via `manage_engagement` with `polish_provenance.source="skill"` so the two-stage edit diff is captured.
+The backend produces a research dossier + shippable-floor comment for every engagement (the `polished_floor` field — quality SLA for all four front doors per `project_four_front_doors_architecture`). The skill's job is to UPLIFT that floor into a great comment using the operator's Claude subscription, then write the polished result back via `manage_engagements` with `polish_provenance.source="skill"` so the two-stage edit diff is captured.
 
 Reviewing inline burns tokens fast. Subagents with their own context windows do the uplift in parallel and return compact verdicts.
 
@@ -36,7 +36,7 @@ Falls back to general-purpose subagent with MCP tool names in the prompt if the 
 
 ### Step 1: Summarize the queue
 
-Call `get_marketing_overview` to see what's pending. Present a one-liner:
+Call `fetch` with type=marketing, subtype=overview to see what's pending. Present a one-liner:
 
 "X warming drafts, Y nurture drafts, Z marketing drafts, N content posts pending."
 
@@ -55,7 +55,7 @@ If the user just says "go", default to A.
 
 ### Step 3: Pull sender identity (REQUIRED before dispatch)
 
-Call `get_company_profile` to get the sender's identity, value prop, industry expertise, and background. Subagents need this to validate that drafts sound like the right person.
+Call `fetch` with type=settings, subtype=profile to get the sender's identity, value prop, industry expertise, and background. Subagents need this to validate that drafts sound like the right person.
 
 Include a SENDER PROFILE block in every subagent prompt:
 ```
@@ -71,7 +71,7 @@ Background: {founder_background}
 
 For each queue type the user selected, call the appropriate list endpoint, get IDs + lightweight context (no full content yet), then dispatch subagents.
 
-**Warming / Nurture / Marketing engagements** — call `get_engagement_queue` filtered by `type` (`warming` / `nurture` / `marketing`). Batch 3-5 per subagent.
+**Warming / Nurture / Marketing engagements** — call `search` with type=engagements, filtered by source (`warming` / `nurture` / `marketing`). Batch 3-5 per subagent.
 
 **Content posts** — call `get_content_review` for drafts awaiting approval. Batch 2-3 per subagent (posts are longer and need more careful voice check).
 
@@ -130,15 +130,17 @@ For each engagement:
    - KEEP: polished_floor is already strong. Don't edit.
    - FLAG: structurally broken (off-topic, wrong stage, prospect bad fit).
      Recommend skip + plan-stop cascade.
-3. If UPLIFT, call manage_engagement with:
+3. If UPLIFT, call manage_engagements with:
      action="edit"
-     engagement_ids="<id>"
-     content="<your uplifted comment>"
-     polish_provenance={
-       "source": "skill",
-       "model": "<your model — claude-opus-4-7, claude-sonnet-4-6, etc.>",
-       "at": "<ISO8601>",
-       "rewrite_notes": "<one line — what you changed and why>"
+     id="<id>"
+     payload={
+       "content": "<your uplifted comment>",
+       "polish_provenance": {
+         "source": "skill",
+         "model": "<your model — claude-opus-4-7, claude-sonnet-4-6, etc.>",
+         "at": "<ISO8601>",
+         "rewrite_notes": "<one line — what you changed and why>"
+       }
      }
 
 IMPORTANT: Do NOT approve or skip engagements. Return recommendations only.

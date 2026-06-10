@@ -24,22 +24,22 @@ Keep it light. You're not locking a brief yet — you just need a seed string to
 
 A client can have **multiple people**, each with their own connected LinkedIn account. The post must be drafted from the right person's signal and authored from their account. Before pulling any signal, find out who you're authoring as.
 
-Call `get_channel_status` and read `channels.linkedin_accounts` — a list of accounts, each with `account_id`, `account_name`, `user_id`, `user_name`, `user_email`, `status`, `connected`, `has_sales_nav`, and `quota`.
+Call `fetch` with `type="settings"` and `subtype="channel_status"` and read `channels.linkedin_accounts` — a list of accounts, each with `account_id`, `account_name`, `user_id`, `user_name`, `user_email`, `status`, `connected`, `has_sales_nav`, and `quota`.
 
 Then pick the author **`user_id`** to use:
 
-- **`linkedin_accounts` is missing, empty, or the `get_channel_status` call fails** → fall back to the legacy default: omit `author_user_id` entirely on the calls below and proceed. Never block content creation on this lookup.
+- **`linkedin_accounts` is missing, empty, or the channel-status `fetch` call fails** → fall back to the legacy default: omit `author_user_id` entirely on the calls below and proceed. Never block content creation on this lookup.
 - **Exactly one usable account** (one entry with a non-null `user_id`) → silently auto-select that account's `user_id`. Do **not** prompt. **Still pass it explicitly** in Step 3 and Step 5 — do not rely on omitting the param. Omitting it grounds the signal on *you* (the caller) and stores *no* author on the draft, and that single account may belong to a teammate, not you.
-- **More than one usable account** → ask the operator **which person to author as**, presenting each option by `user_name` and `user_email`. The selectable unit is the **person (`user_id`)**, because `author_user_id` is the only selector the signal/draft tools accept — if one person has multiple LinkedIn accounts, this skill can't target them individually (say so if asked). Map the chosen person to their `user_id`.
+- **More than one usable account** → ask the operator **which person to author as**, presenting each option by `user_name` and `user_email`. The selectable unit is the **person (`user_id`)**, because the author `user_id` is the only selector the signal/draft tools accept — if one person has multiple LinkedIn accounts, this skill can't target them individually (say so if asked). Map the chosen person to their `user_id`.
 - **Skip any account whose `user_id` is null/missing** when counting and presenting options (it isn't addressable as an author).
 
 Hold the resolved `user_id` (or the decision to omit it) and use it consistently for both the signal pull and the draft.
 
 ## Step 3: Pull the seller's signal
 
-Call `get_seller_signal_bundle` with the rough topic as the `draft_brief` argument. **If you resolved an author `user_id` in Step 2, pass it as the `author_user_id` query param** so the signal is *that person's*, not the caller's. (Omit `author_user_id` only in the legacy-fallback case from Step 2.) The brief drives a semantic re-rank, so the more concrete the topic, the more relevant the returned evidence.
+Call `fetch` with `type="seller_signals"`, passing the rough topic as `draft_brief` in `filters`. **If you resolved an author `user_id` in Step 2, pass it as the `id` argument** so the signal is *that person's*, not the caller's. (Omit `id` only in the legacy-fallback case from Step 2.) The brief drives a semantic re-rank, so the more concrete the topic, the more relevant the returned evidence.
 
-**Trust boundary — handle 403 honestly.** Authoring as another person is permission-guarded server-side (a non-owner can't author as a teammate). If this call (or the draft call in Step 5) returns **403**, STOP: tell the operator plainly that they aren't entitled to author as that person, and ask them to pick a permitted author or have an owner do it. Do **not** retry with `author_user_id` omitted — that would silently fall back to caller/company-scoped generation under a different identity than was asked for.
+**Trust boundary — handle 403 honestly.** Authoring as another person is permission-guarded server-side (a non-owner can't author as a teammate). If this call (or the draft call in Step 5) returns **403**, STOP: tell the operator plainly that they aren't entitled to author as that person, and ask them to pick a permitted author or have an owner do it. Do **not** retry with the author param omitted — that would silently fall back to caller/company-scoped generation under a different identity than was asked for.
 
 **Ground on `formatted_evidence`.** It is the EVIDENCE-wrapped rendering prepared for drafting — the surface you should read, quote, and reason over. The backend scrubs prospect names, emails, phone numbers, and URLs out of *everything* it returns (both `formatted_evidence` and the raw `bundle` text), so you don't have to police that yourself — there is no un-redacted surface on the response. Still prefer `formatted_evidence`: it is the prepared, sectioned grounding surface, where `bundle` is just the structured raw material behind it.
 
@@ -51,7 +51,7 @@ Call `get_seller_signal_bundle` with the rough topic as the `draft_brief` argume
 
 This step is **optional** and **must never gate the loop**. It exists only to make the brief a little smarter, not to add a precondition before drafting. If you skip it, or it returns nothing, or it errors — proceed to Step 4 silently and draft anyway.
 
-If a quick read of what's already on the content calendar would help shape the angle, call `get_content_calendar` **once** (the default `days` window is fine — don't loop or page). Treat the returned `posts` (each with `topic_tags`, `status`, and `scheduled_at`/`published_at`) and the `summary` as planning context only, to:
+If a quick read of what's already on the content calendar would help shape the angle, call `search` with `type="content"` **once** (the default `days` filter window is fine — don't loop or page). Treat the returned `posts` (each with `topic_tags`, `status`, and `scheduled_at`/`published_at`) and the `summary` as planning context only, to:
 
 - **Avoid theme clustering** — if a recent or upcoming post already covers this `topic_tags` theme, nudge the angle somewhere fresher rather than posting two near-duplicates close together.
 - **Notice cadence gaps** — if the calendar looks thin lately, that's a soft reason to keep this one moving. This is best-effort only: the tool returns posts by recency (it lists what was created recently, not a precise scheduled-window view), so don't promise exact cadence math or specific dates — read it as a rough sense of "busy" vs "quiet," not a schedule.
@@ -74,37 +74,37 @@ Let the seller refine. Iterate in conversation until the brief is **settled** �
 
 ## Step 5: Draft on-voice — once
 
-**Only once the brief is settled**, call `generate_linkedin_post`, passing the settled brief as the `topic` argument. **If you resolved an author `user_id` in Step 2, pass the same value as `author_user_id`** so the draft is written from that person's voice/signal and the draft row is stamped with their `author_user_id` (this is what later carries the author through schedule/publish). Pass the *same* `user_id` you used for the signal pull — don't let signal and draft disagree. Omit `author_user_id` only in the legacy-fallback case. The same **403** trust-boundary rule from Step 3 applies here: on 403, STOP and ask for a permitted author — never retry with the param omitted.
+**Only once the brief is settled**, call `manage_content` with `action="draft_post"`, passing the settled brief as `topic` in the payload. **If you resolved an author `user_id` in Step 2, pass the same value as `author_user_id` in the payload** so the draft is written from that person's voice/signal and the draft row is stamped with their `author_user_id` (this is what later carries the author through schedule/publish). Pass the *same* `user_id` you used for the signal pull — don't let signal and draft disagree. Omit `author_user_id` only in the legacy-fallback case. The same **403** trust-boundary rule from Step 3 applies here: on 403, STOP and ask for a permitted author — never retry with the param omitted.
 
 The backend writes the draft in the seller's voice and grounds it on their seller signal internally — you do not pass the evidence yourself.
 
-`generate_linkedin_post` creates a new draft row every time it runs. Call it **once** per post. Show the seller the returned draft.
+The `draft_post` action creates a new draft row every time it runs. Call it **once** per post. Show the seller the returned draft.
 
 ## Step 6: Iterate by editing — never regenerate
 
-When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the **existing** draft with `manage_content_post` using `action="edit"`, passing the updated `content`. 
+When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`. 
 
-Never call `generate_linkedin_post` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
+Never call `manage_content` with `action="draft_post"` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
 
-`manage_content_post` operates on the existing draft row, which already carries the `author_user_id` you stamped at generation. You do **not** re-pass the author here — schedule/publish inherit it from the row.
+`manage_content` operates on the existing draft row, which already carries the `author_user_id` you stamped at generation. You do **not** re-pass the author here — schedule/publish inherit it from the row.
 
 ## Step 7: Save — draft, schedule, or publish
 
 When the seller is happy with the draft, ask how they want to land it. **Default to keeping it as a draft or scheduling it.**
 
 - **Keep as draft** — do nothing further; the draft already exists and is visible at `/marketing/content`.
-- **Schedule** — call `manage_content_post` with `action="schedule"` and a `scheduled_at` ISO-8601 timestamp. It auto-publishes when due.
+- **Schedule** — call `manage_content` with `action="schedule"` and a `scheduled_at` ISO-8601 timestamp. It auto-publishes when due.
 - **Publish now** — this is destructive and irreversible, and it will fail (marking the draft unusable) if no LinkedIn account is connected. So treat it as a deliberate, confirmed action:
   - Never call publish as a probe or a default.
-  - Only call `manage_content_post` with `action="publish"` **after** the seller has explicitly confirmed "publish now."
+  - Only call `manage_content` with `action="publish"` **after** the seller has explicitly confirmed "publish now."
   - Always offer save-as-draft or schedule as the safer fallback when proposing publish.
 
 **Author-scoped publish — the backend refuses to fall back to another identity.** Schedule/publish read the author from the draft row. For an author-scoped post (one you authored as a specific person in Step 2, so the draft carries their `author_user_id`), the backend resolves *that person's* LinkedIn account **strictly**: if their account is missing, disconnected, or its `quota` is exhausted at publish time, the publish **fails hard with an `Author account unavailable` error** instead of posting from another connected company account. So an author-scoped post can never silently go out under a *different person's identity* than the one you chose — the server enforces this, including for scheduled posts that publish later at worker execution time (long after this conversation). A legacy / no-author post (you omitted `author_user_id` in Step 2) keeps the old company-wide fallback — there's no specific identity to protect.
 
-Because that hard failure lands at publish time — which for a scheduled post can be minutes or hours after you draft it — surface it **early** rather than letting the operator discover a dead, `failed` post later. So before you schedule or publish a post you authored as a specific person, **call `get_channel_status` again — fresh, right now, immediately before the schedule/publish call.** Do **not** trust the Step 2 snapshot: an account can disconnect, change `status`, or exhaust its `quota` during drafting and refinement. Re-read `channels.linkedin_accounts` from this *new* response and find the author's account by the `user_id` you stamped on the draft, then:
+Because that hard failure lands at publish time — which for a scheduled post can be minutes or hours after you draft it — surface it **early** rather than letting the operator discover a dead, `failed` post later. So before you schedule or publish a post you authored as a specific person, **call the channel-status `fetch` (type=settings, subtype=channel_status) again — fresh, right now, immediately before the schedule/publish call.** Do **not** trust the Step 2 snapshot: an account can disconnect, change `status`, or exhaust its `quota` during drafting and refinement. Re-read `channels.linkedin_accounts` from this *new* response and find the author's account by the `user_id` you stamped on the draft, then:
 
 - If their account is present, `connected`, `status` is healthy, and `quota` is not exhausted **in the fresh response** → proceed with schedule/publish as normal (still behind the explicit "publish now" confirmation above).
-- If their account is **missing, not `connected`, shows a bad `status`, or has an exhausted `quota` in the fresh response** (or the fresh `get_channel_status` call fails / omits `linkedin_accounts`, so you can't confirm the author's account is healthy) → **STOP. Do not schedule or publish.** The backend would reject this author-scoped publish as `Author account unavailable` anyway; tell the operator plainly so they don't end up with a `failed` post. Offer the safe paths: keep it as a draft, reschedule for after that person's account is reconnected / their quota resets, or pick a different permitted author and regenerate. There is no "publish under a different identity" escape hatch for an author-scoped post — the server will not do it; to post from another account the operator must deliberately regenerate the draft under that author (or with no author).
+- If their account is **missing, not `connected`, shows a bad `status`, or has an exhausted `quota` in the fresh response** (or the fresh channel-status `fetch` call fails / omits `linkedin_accounts`, so you can't confirm the author's account is healthy) → **STOP. Do not schedule or publish.** The backend would reject this author-scoped publish as `Author account unavailable` anyway; tell the operator plainly so they don't end up with a `failed` post. Offer the safe paths: keep it as a draft, reschedule for after that person's account is reconnected / their quota resets, or pick a different permitted author and regenerate. There is no "publish under a different identity" escape hatch for an author-scoped post — the server will not do it; to post from another account the operator must deliberately regenerate the draft under that author (or with no author).
 
 For a legacy / no-author post (you omitted `author_user_id` in Step 2) there is no specific author identity to protect, so the standard publish confirmation above is sufficient.
 

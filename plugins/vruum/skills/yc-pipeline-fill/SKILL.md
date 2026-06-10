@@ -29,11 +29,11 @@ If the operator runs the skill without filters, prompt: "YC has 5K+ companies �
 
 ### Step 1: Load segment ICP
 
-Call `get_research_playbook(segment_id=<id>)` to load ICP context. The downstream subagents need it for classification; capture it now to pass forward.
+Call `fetch` type=research_playbook id=<segment_id> to load ICP context. The downstream subagents need it for classification; capture it now to pass forward.
 
 ### Step 2: Algolia connectivity precheck
 
-Issue a one-shot Algolia query against the index with `hitsPerPage: 1` to confirm extraction works. **Do NOT use `manage_sales_nav_searches(action="accounts")`** as a precheck — that endpoint checks LinkedIn account state and has nothing to do with YC. False-fails operators who don't have Sales Nav configured (eng review §1B).
+Issue a one-shot Algolia query against the index with `hitsPerPage: 1` to confirm extraction works. **Do NOT use `import_prospects` action=sales_nav_searches payload={action: "accounts"}** as a precheck — that endpoint checks LinkedIn account state and has nothing to do with YC. False-fails operators who don't have Sales Nav configured (eng review §1B).
 
 The precheck happens implicitly in Step 3 (the first real Algolia call); if it fails there, abort with a clear error.
 
@@ -101,7 +101,7 @@ After decoding, regex out:
 **Pick primary founder:**
 1. First founder where `title` matches `/CEO|Chief Exec|Co-?founder & CEO/i` (case-insensitive)
 2. Else first founder where `linkedin_url` is non-empty
-3. Else **drop the company entirely.** Do not call `find_person_linkedin` to guess — produces low-confidence matches and noise.
+3. Else **drop the company entirely.** Do not call `research` action=find_linkedin to guess — produces low-confidence matches and noise.
 
 **HTML revision detection:** If >30% of candidates yield zero founders (regex didn't match), abort the run with: "YC company page structure changed — scrape regex needs updating." Don't silently degrade. Single-company misses are tolerable.
 
@@ -161,7 +161,7 @@ Continue automatically? (y/n)
 
 - **Algolia key extraction fails** (no candidates work): abort, single-line error pointing at the homepage structure.
 - **>30% scrape failure**: abort, point at the company-page structure.
-- **No founder LinkedIn for a company**: drop the company; never guess via `find_person_linkedin`.
+- **No founder LinkedIn for a company**: drop the company; never guess via the find_linkedin research action.
 - **Pool exhaustion**: flag in candidate list metadata so the orchestrator's report surfaces it.
 - **Operator gives no filters**: prompt for at least one. No silent defaults.
 - **Operator gives `count` of 200+**: still works; expect ~30+ minute wall-clock for the full pipeline-fill flow.

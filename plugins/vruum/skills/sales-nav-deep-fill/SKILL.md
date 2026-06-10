@@ -10,7 +10,7 @@ description: >-
 
 You are the Sales Nav harness-mode source for `/pipeline-fill`. You produce a candidate list from a Sales Nav saved search and hand off to the orchestrator for deep research, harness gate, and save chain.
 
-**This is the harness counterpart to `/sales-nav-platform-fill`.** The platform skill calls `import_from_sales_nav` and lets backend agents do everything (Vruum's compute). This skill stops at producing a candidate list — Phase A and Phase B run in your chat session (your harness compute), and `save_discovered_person` is called only after the harness pre-filter gate passes. Pick this when you want visibility into the deep research as it happens.
+**This is the harness counterpart to `/sales-nav-platform-fill`.** The platform skill calls `import_prospects` with action=sales_nav_import and lets backend agents do everything (Vruum's compute). This skill stops at producing a candidate list — Phase A and Phase B run in your chat session (your harness compute), and `manage_person` with action=save_discovered is called only after the harness pre-filter gate passes. Pick this when you want visibility into the deep research as it happens.
 
 ## Inputs
 
@@ -21,7 +21,7 @@ You are the Sales Nav harness-mode source for `/pipeline-fill`. You produce a ca
 
 ### Step 1: Preview Sales Nav profiles
 
-Call `preview_sales_nav_search(segment=..., count=...)`. Returns profile data + segment ICP context (target_titles, target_industries, value_proposition, positioning_angle, differentiators).
+Call `import_prospects(action="sales_nav_preview", payload={segment: ..., count: ...})`. Returns profile data + segment ICP context (target_titles, target_industries, value_proposition, positioning_angle, differentiators).
 
 ### Step 2: Dispatch `vruum-pipeline-filter` for ICP pre-filter
 
@@ -57,6 +57,6 @@ Continue automatically? (y/n)
 
 ## Notes
 
-- **For the operator:** pick this when you want to see the deep research happen, want to interrupt mid-stream, or want zero platform compute cost on the front-half (sourcing + research). The back-half (`save_discovered_person`'s `analyze_person_match` + `match_score >= 70` gate) still runs on Vruum, intentionally — it's the canonical gate.
-- **Don't call `import_from_sales_nav` directly from this skill.** That triggers the backend research pipeline, which is exactly what we're avoiding by being in harness mode. If you need the backend path, use `/sales-nav-platform-fill` instead.
+- **For the operator:** pick this when you want to see the deep research happen, want to interrupt mid-stream, or want zero platform compute cost on the front-half (sourcing + research). The back-half (`manage_person` action=save_discovered, which runs `analyze_person_match` + the `match_score >= 70` gate) still runs on Vruum, intentionally — it's the canonical gate.
+- **Don't call `import_prospects` with action=sales_nav_import directly from this skill.** That triggers the backend research pipeline, which is exactly what we're avoiding by being in harness mode. If you need the backend path, use `/sales-nav-platform-fill` instead.
 - **vruum-pipeline-filter pre-filter is FREE** for the operator (cheap title/company match). The expensive Phase B research only fires on prospects that survive that filter.
