@@ -2,6 +2,8 @@
 
 Vruum AI skills for Claude Code, Codex CLI, and any AI assistant with a skill directory.
 
+Once installed, run `/vruum-guide` in your harness — it takes you from an empty account to your first reviewed outreach draft, then keeps recommending the next most valuable action.
+
 Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `skill` tool (action=invoke to run a skill, action=publish to publish one), with `search` type=skills and `fetch` type=skill for discovery, so any connected client can run these skills. Skills themselves are distributed via the Claude Code plugin / marketplace; this npm package installs them into the agent-standard skills directory for harnesses without plugin support (Codex CLI, ChatGPT, Windsurf).
 
 ## Install
