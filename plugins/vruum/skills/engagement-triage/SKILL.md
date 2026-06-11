@@ -16,11 +16,15 @@ Do not silently fall back to generic Claude responses.
 
 # Engagement Triage
 
-You review the user's pending LinkedIn engagement drafts (warming comments, nurture reactions, marketing comments) and demand-gen content posts. Subagents dispatch in parallel to UPLIFT the backend's shippable-floor output into great comments, then present results for approval. Separate from `/outreach-triage` (which handles outreach messages).
+You review the user's pending LinkedIn engagement queue (warming comments, nurture reactions, marketing comments) and demand-gen content posts. Subagents dispatch in parallel to AUTHOR comments awaiting prose and UPLIFT any legacy backend drafts, then present results for approval. Separate from `/outreach-triage` (which handles outreach messages).
 
 ## Why this is a skill and not just "call the tool"
 
-The backend produces a research dossier + shippable-floor comment for every engagement (the `polished_floor` field — quality SLA for all four front doors per `project_four_front_doors_architecture`). The skill's job is to UPLIFT that floor into a great comment using the operator's Claude subscription, then write the polished result back via `manage_engagements` with `polish_provenance.source="skill"` so the two-stage edit diff is captured.
+The backend no longer writes engagement prose (VRU-570: the harness authors everything). Items arrive as `needs_draft` — the deterministic research dossier, the target post, and the person context attached, but NO comment text. These are blank pages, not rewrites: the skill AUTHORS the comment in the seller's voice and submits it via `manage_engagements` action=edit (which flips the item to a normal reviewable `draft`), then the operator approves.
+
+**Authoring is the second qualification gate.** The backend's relevance scoring picked the post; whether it's actually comment-worthy is now YOUR call — the judgment the retired agent used to make. If the post isn't worth a comment, recommend skip. NOTE the bundle semantics: skipping a needs_draft comment cascade-skips its bundled like (same `engagement_group_id`), so skip means "don't engage this post at all", not "like without commenting."
+
+Legacy `draft` items (created before the cutover, or under the fallback env) still carry `polished_floor` — for those the job is UPLIFT: rewrite the floor into a great comment, with `polish_provenance.source="skill"` so the edit diff is captured.
 
 Reviewing inline burns tokens fast. Subagents with their own context windows do the uplift in parallel and return compact verdicts.
 
@@ -123,14 +127,24 @@ Hard constraints:
 - No company/product names, URLs, or CTAs.
 
 For each engagement:
-1. Read polished_floor + dossier + pitch_phrases + validator_failures.
-2. Decide UPLIFT, KEEP, or FLAG:
+1. Read status + content + dossier + target_post_text + pitch_phrases (+
+   polished_floor/validator_failures on legacy drafts).
+2. Branch on status:
+   **needs_draft → AUTHOR or FLAG** (this is the default post-VRU-570):
+   - AUTHOR: write the comment from scratch — grounded in the dossier and
+     the actual post text, in the seller's voice, against the same quality
+     bars below. This is a blank page, not a rewrite. Submit via
+     manage_engagements action="edit" (the edit flips the item to draft).
+   - FLAG: the post isn't comment-worthy (generic, off-topic, bad fit) —
+     recommend skip. Skipping cascades to the bundled like, so this means
+     "don't engage this post at all."
+   **draft (legacy/fallback) → UPLIFT, KEEP, or FLAG:**
    - UPLIFT: rewrite to fix listed validator_failures AND/OR pull a sharper
      specific fact from the dossier. Materially better, not lateral.
    - KEEP: polished_floor is already strong. Don't edit.
    - FLAG: structurally broken (off-topic, wrong stage, prospect bad fit).
      Recommend skip + plan-stop cascade.
-3. If UPLIFT, call manage_engagements with:
+3. If AUTHOR or UPLIFT, call manage_engagements with:
      action="edit"
      id="<id>"
      payload={
@@ -147,7 +161,7 @@ IMPORTANT: Do NOT approve or skip engagements. Return recommendations only.
 The operator approves in Step 5.
 
 Return a structured summary for each item:
-ENGAGEMENT: {id} | TYPE: {reaction|comment} | PERSON: {name} | SOURCE: {warming|nurture|marketing} | RECOMMENDATION: {uplifted|kept|flag} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | UPLIFTED: {yes/no} | COMMENT_TEXT: {the comment text, or "reaction" for likes} | VALIDATOR_FAILURES_FIXED: {comma-separated, or "none"}
+ENGAGEMENT: {id} | TYPE: {reaction|comment} | PERSON: {name} | SOURCE: {warming|nurture|marketing} | RECOMMENDATION: {authored|uplifted|kept|flag} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | AUTHORED_OR_UPLIFTED: {yes/no} | COMMENT_TEXT: {the comment text, or "reaction" for likes} | VALIDATOR_FAILURES_FIXED: {comma-separated, or "none"}
 ```
 
 For high-value comments (match score 80+, nurture, cold marketing), use research mode: 1 comment per subagent. The subagent reads the prospect's actual post via `get_person_360`, cross-checks against the dossier, and uplifts only when there's a real opportunity to improve.
