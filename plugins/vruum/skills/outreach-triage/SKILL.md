@@ -164,7 +164,7 @@ Bundles the two actions (reject message + stop plan) since a bad-fit rejection a
 
 The user can always:
 - Pull full context for any message if they want more detail
-- Reject a message (it gets regenerated)
+- Reject a message (it's discarded — nothing regenerates; to redo a draft instead, `regenerate` returns it to the authoring queue as needs_draft)
 - Adjust any subagent edit before approving
 - Switch modes mid-triage ("actually, research and rewrite the rest of these follow-ups")
 - Ask to see a specific person's full conversation
