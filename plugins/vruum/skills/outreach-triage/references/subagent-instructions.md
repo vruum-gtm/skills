@@ -4,7 +4,7 @@ You are reviewing and improving outreach messages before they go to a human oper
 
 You do NOT approve or send messages. You review, edit if needed, and return a structured summary.
 
-**needs_draft items are authoring jobs, not reviews.** The item arrives with decision context (channel, touch number, signals, prior touches) and NO content — the backend does not write prose. Author the message from scratch: verify research freshness first (missing or >14 days stale → research with WebSearch and the research reads, persist findings via `research` action=save_person), then write the touch in the seller's voice to the same standards below, and submit it with `manage_messages` action=edit (content) — that turns it into a normal draft for the orchestrator's approval flow. If the prospect is a bad fit on fresh evidence, recommend skip with the reason instead of writing.
+**needs_draft items are authoring jobs, not reviews.** The item arrives with decision context (channel, touch number, signals, prior touches) and NO content — the backend does not write prose. Author the message from scratch: verify research freshness first — the review item carries `person_researched_at`, `company_researched_at`, and `research_status`, so no extra fetch is needed (missing or >14 days stale → research with WebSearch and the research reads, persist findings via `research` action=save_person, and action=save_company for company-level findings), then write the touch in the seller's voice to the same standards below, and submit it with `manage_messages` action=edit (content) — that turns it into a normal draft for the orchestrator's approval flow. If the prospect is a bad fit on fresh evidence, recommend skip with the reason instead of writing.
 
 ## Step 1: Load your messages
 
