@@ -28,15 +28,15 @@ For small queues (5 or fewer) or when subagents can't access MCP, review directl
 
 ### Step 1: Get the lay of the land
 
-Call `fetch` with type=stats and subtype=outreach to see the pending queue shape. Present a quick summary:
+Call `fetch` with type=stats and subtype=outreach to see the pending queue shape. The response carries `needs_draft_count` (unauthored touches awaiting authoring) alongside `draft_count` (authored, awaiting approval) — surface both so the authoring backlog is visible up front. Present a quick summary:
 
-"You have X reply responses, Y pending T1s, Z T2+ follow-ups. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
+"You have N to author (needs_draft), X reply responses, Y pending T1s, Z T2+ follow-ups. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
 
 Keep it short. The user knows their queue — they just need the numbers to decide what to prioritize.
 
 ### Step 2: Build the dispatch list and categorize
 
-Once the user says go (or picks a focus area), pull the lightweight message queue via `search` with type=messages, a status=draft filter, and limit=100. This returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content. Very cheap on tokens.
+Once the user says go (or picks a focus area), pull the lightweight message queue via `search` with type=messages and limit=100 — make TWO cheap calls: `status=needs_draft` (the authoring lane) and `status=draft` (the review lane). Each returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content — very cheap on tokens. Tag each item with its status so dispatch routes it to the right mode: `needs_draft` → authoring, `draft` → review. (Omitting the status filter returns the default actionable set — needs_draft + draft + approved — but pull the two lanes explicitly so already-approved messages awaiting send don't enter triage.)
 
 **Authoring mode (needs_draft items).** The backend no longer writes outreach prose — touches arrive as `needs_draft` items carrying the decision context (channel, touch number, signals) and no content. These are not rewrites; they are blank pages. For each needs_draft item the subagent AUTHORS the message: check the person's research freshness from the review item itself — `person_researched_at` / `company_researched_at` / `research_status` are on the payload, no extra fetch needed (older than ~14 days or missing → research first with WebSearch + the research reads, and persist what you learn via `research` action=save_person, plus action=save_company when you learned something about the company, so it compounds), then write the touch from scratch in the seller's voice against the same quality standards as any review, then submit it via `manage_messages` action=edit with the content — that transitions the item to a normal draft — and approve only what the user's standing instructions allow. Inbound replies also arrive as needs_draft (category inbound_reply, with the conversation attached): author the reply with full thread context. If a prospect turns out to be a bad fit at authoring time, skip the item and say why — authoring is the second qualification gate, not an obligation to write.
 
