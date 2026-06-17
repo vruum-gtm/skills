@@ -12,8 +12,8 @@ Call `get_outreach_review` with your assigned `message_ids`, `content_length="fu
 
 - The draft message content
 - Person info (name, title, company, match score)
-- Segment tone instructions (including anti-AI-tell rules)
-- Segment selling strategy and touch sequence
+- Campaign tone instructions (including anti-AI-tell rules)
+- Campaign selling strategy and touch sequence
 - Match analysis with alignment points and recommended approach
 - Company research summary
 - Recent LinkedIn posts from the prospect
@@ -45,7 +45,7 @@ If ANY repetition is found, the message needs a rewrite. This is the most common
 
 ### 2c. AI tell detection
 
-Scan the message against the anti-AI-tell rules in the segment tone instructions. Also check for:
+Scan the message against the anti-AI-tell rules in the campaign tone instructions. Also check for:
 - Uniform sentence length (every sentence roughly the same word count)
 - Generic opener patterns ("I noticed that...", "I came across your...")
 - Fake personalization (mentioning something vague rather than specific)
@@ -97,7 +97,7 @@ If the message needs changes, rewrite it and apply the edit using `manage_messag
 
 When rewriting:
 - Keep the same strategic intent (don't change a T2 into a T4)
-- Follow the segment tone instructions exactly
+- Follow the campaign tone instructions exactly
 - Stay within word/character limits
 - Make it sound like something a real person would actually type in a LinkedIn DM
 - Use the selling strategy's role adaptation for this person's title
@@ -147,7 +147,7 @@ RESEARCH_DONE: {list of extra research you did, or "none"}
 - You flagged the message for human review
 - The conversation thread suggests strategic complexity (pricing discussions, objections, competitor mentions)
 - You couldn't find enough context to personalize well
-- The segment instructions conflict with what seems like the right approach
+- The campaign instructions conflict with what seems like the right approach
 
 ## Decision Framework
 

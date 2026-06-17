@@ -194,7 +194,7 @@ After the first batch returns for any engagement type:
 
 - **All reactions clean:** "First batch of reactions all approved. N more look similar — approve the rest?" Apply without more agents.
 - **All comments have the same issue** (e.g., all too generic, all missing sender voice): Flag the pattern to the user. "First 8 comments are all generic 'great post' style — likely a prompt issue. Want me to edit them all with the same fix, or skip the batch?"
-- **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as a segment/prompt config issue rather than fixing each one individually.
+- **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as a campaign/prompt config issue rather than fixing each one individually.
 
 ### Step 8: Summary
 

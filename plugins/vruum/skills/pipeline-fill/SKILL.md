@@ -9,19 +9,19 @@ description: >-
 ---
 # Pipeline Fill
 
-You are a source-agnostic pipeline filler. You pick segments to fill, pick a source per segment (Sales Nav / YC / CSV / discovery), and orchestrate harness deep research that gates against the segment ICP before saving prospects into the backend pipeline.
+You are a source-agnostic pipeline filler. You pick campaigns to fill, pick a source per campaign (Sales Nav / YC / CSV / discovery), and orchestrate harness deep research that gates against the campaign ICP before saving prospects into the backend pipeline.
 
 ## Why this skill exists
 
-Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), pre-filters against segment ICP, then saves the qualified ones into the segment via the backend's canonical gate.
+Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), pre-filters against campaign ICP, then saves the qualified ones into the campaign via the backend's canonical gate.
 
 ## Where the heavy logic lives
 
 Steps 3–8 (pre-flight, Phase A research, Phase B research, harness gate, save chain, audit-log report) are defined in `RESEARCH-ENGINE.md` (in this same skill directory). This skill owns:
-- Step 1: segment picker (with ETA)
+- Step 1: campaign picker (with ETA)
 - Step 2: source picker (conditional PLATFORM block + always-visible HARNESS block)
 - The discovery-mode handler (paste candidates inline OR describe an ICP and source via harness tools)
-- The multi-segment grammar
+- The multi-campaign grammar
 
 When you reach Step 3, **stop and read** `RESEARCH-ENGINE.md`. That doc is the canonical source for the candidate-list shape, the harness gate criteria, the identity-resolution save chain, and the canonical handoff prompt that source skills use.
 
@@ -50,13 +50,13 @@ The orchestrator's MCP precheck at the top of Step 3 (the `fetch` type=research_
 ## Inputs
 
 - `prospect_list` (optional): pre-built candidate list matching the canonical shape in `RESEARCH-ENGINE.md`. If provided, skip the source-picker step and go straight to Step 3 (pre-flight). This is how source skills hand off.
-- `segment(s)`: target segment(s); multi-segment supported.
+- `campaign(s)`: target campaign(s); multi-campaign supported.
 - `mode`: `research-only` | `save` | `save-and-enroll` (default: `save-and-enroll`).
-- `gate_threshold`: minimum backend `match_score` to enroll (default: segment's existing quality_gate).
+- `gate_threshold`: minimum backend `match_score` to enroll (default: campaign's existing quality_gate).
 
-## Workflow — Step 1: Show pipeline status & pick segments
+## Workflow — Step 1: Show pipeline status & pick campaigns
 
-Call `import_prospects(action="sales_nav_searches", payload={action: "list"})` + `fetch(type="stats", subtype="outreach")` for queue depth + `search(type="campaigns")` for non-Sales-Nav segments. Present a numbered table with **per-segment ETA**:
+Call `import_prospects(action="sales_nav_searches", payload={action: "list"})` + `fetch(type="stats", subtype="outreach")` for queue depth + `search(type="campaigns")` for non-Sales-Nav campaigns. Present a numbered table with **per-campaign ETA**:
 
 ```
 Pipeline status:
@@ -66,29 +66,29 @@ Pipeline status:
   3. Houston CTOs   — 0/20  (20 needed) — harness ETA: ~18m
   4. NYC Partners   — 40/40 ✓
 
-Which segments to fill? (all / 1,3 / skip 2)
+Which campaigns to fill? (all / 1,3 / skip 2)
 Total if all needing fill: ~37m sequential.
 ```
 
-ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase B (5-parallel cap on Phase B). Multi-segment ETAs are sequential.
+ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase B (5-parallel cap on Phase B). Multi-campaign ETAs are sequential.
 
 **Table rules:**
-- One row per segment, numbered sequentially
+- One row per campaign, numbered sequentially
 - Show current/target counts and how many are needed
 - Flag searches that are drying up (⚠️) or accounts near capacity
-- Mark segments already at target with ✓ and don't number them
-- Show per-segment ETA so operator can budget time
+- Mark campaigns already at target with ✓ and don't number them
+- Show per-campaign ETA so operator can budget time
 
-**Wait for the user's response.** Parse: "all", "1, 3", "skip 2", "just the CFO ones", etc. Only proceed with the selected segments.
+**Wait for the user's response.** Parse: "all", "1, 3", "skip 2", "just the CFO ones", etc. Only proceed with the selected campaigns.
 
-## Workflow — Step 2: Pick source per segment (only if `prospect_list` not provided)
+## Workflow — Step 2: Pick source per campaign (only if `prospect_list` not provided)
 
-Per selected segment, prompt:
+Per selected campaign, prompt:
 
 In **public mode** (the package builder strips the PLATFORM block from this skill before publishing), the picker shows only HARNESS modes, renumbered 1–4:
 
 ```
-Source for {segment_name}?
+Source for {campaign_name}?
   HARNESS mode (your compute, in-chat deep research, visible & interruptible):
     1. sales-nav-deep    — Sales Nav profiles + harness deep research
     2. yc                — scrape YC directory with filters you provide
@@ -107,7 +107,7 @@ Per source pick, dispatch:
 - `csv` → invoke `/csv-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
 - `discovery` → use the discovery-mode handler below to produce a candidate list (handler branches: paste-shaped input → parse, prose ICP brief → harness sources via WebSearch + Vruum MCP + LinkedIn search), then continue to Step 3 with it.
 
-**Multi-segment behavior:** segments run sequentially. Segment 1's Step 7 (save chain + bulk enroll) completes before segment 2's Step 3 starts. Predictable rate-limit behavior, simple progress narrative. Trade-off: 3-segment fills are ~37min wall-clock vs ~22min if Phase A/B were overlapped across segments. Cross-segment overlap is a v2.
+**Multi-campaign behavior:** campaigns run sequentially. Campaign 1's Step 7 (save chain + bulk enroll) completes before campaign 2's Step 3 starts. Predictable rate-limit behavior, simple progress narrative. Trade-off: 3-campaign fills are ~37min wall-clock vs ~22min if Phase A/B were overlapped across campaigns. Cross-campaign overlap is a v2.
 
 ## Discovery-mode handler (for `discovery` source)
 
@@ -127,13 +127,13 @@ Drop blank lines and lines starting with `#` (treat as comments).
 **Path B — operator describes an ICP** (you want the harness to discover candidates)
 Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "directors of operations at MSPs in DFW, recently posted about hiring". Harness sources candidates from scratch:
 
-1. **Anchor on segment ICP** — read the segment's existing ICP/company profile (via `fetch` type=campaign and `fetch` type=settings subtype=profile) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
+1. **Anchor on campaign ICP** — read the campaign's existing ICP/company profile (via `fetch` type=campaign and `fetch` type=settings subtype=profile) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
 2. **Source companies first** — use harness tools to find candidate companies matching the brief:
    - `WebSearch` for funding announcements, news, lists ("Series A SaaS 2026", "TechCrunch Series B SaaS announcements")
    - `WebFetch` on Crunchbase / PitchBook / company directories
    - `mcp__vruum__import_prospects` with action=sales_nav_search (payload={keywords, title, limit}) for company-fitting roles when the brief is people-shaped (e.g. "VPs of Eng at Series A SaaS")
-3. **Source people from each company** — for each candidate company, use `mcp__vruum__search` with type=companies and filters={domain, seniority} (Unipile-backed; respects LinkedIn rate limits) to find titles matching the segment ICP. Cap at ~5 people per company to spread the discovery surface.
-4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search` with type=people and a name/company keyword query so you don't research someone the segment already has.
+3. **Source people from each company** — for each candidate company, use `mcp__vruum__search` with type=companies and filters={domain, seniority} (Unipile-backed; respects LinkedIn rate limits) to find titles matching the campaign ICP. Cap at ~5 people per company to spread the discovery surface.
+4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search` with type=people and a name/company keyword query so you don't research someone the campaign already has.
 5. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
 
 Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.

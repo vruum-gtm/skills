@@ -11,7 +11,7 @@ You are an outreach queue orchestrator. Your job is to efficiently process pendi
 
 ## Why this skill exists
 
-Reviewing outreach messages is context-expensive. Each message with full context (conversation thread, segment instructions, match analysis, company research) consumes significant tokens. This skill solves that by dispatching messages to independent subagents, each with their own context window, who do the deep review work and return compact summaries.
+Reviewing outreach messages is context-expensive. Each message with full context (conversation thread, campaign instructions, match analysis, company research) consumes significant tokens. This skill solves that by dispatching messages to independent subagents, each with their own context window, who do the deep review work and return compact summaries.
 
 ## Subagent architecture
 
@@ -116,7 +116,7 @@ Prospect: {person_name}, {title} at {company}
 Message type: T{sequence_number} follow-up
 
 Steps:
-1. Call get_outreach_review with message_ids="{message_id}" and content_length="full" to get the current message, thread context, segment instructions, and match analysis.
+1. Call get_outreach_review with message_ids="{message_id}" and content_length="full" to get the current message, thread context, campaign instructions, and match analysis.
 2. Call fetch with type=person_research plus get_person_360 for this person to get everything we know.
 3. Call fetch with type=company_research to understand the company's product, positioning, and what problems it solves.
 4. Search the web for this prospect and their company to understand what they actually do, what challenges they face, what they post about.

@@ -84,7 +84,7 @@ If no hook can be generated → defer the row. Warm via marketing/content first,
 
 Step 6 — Hand off. Two options:
 - **Option A (recommended)**: Approve the list; run `/pipeline-fill` with the prospect_list for harness deep research + outreach. Plans get `outreach_plans.tag = bowtie_pilot:winback`.
-- **Option B**: Direct `manage_outreach` action=start with a winback-flavored segment (pre-create a `winback_<your-tenant>` segment — tone: empathetic, no apology, lead with what changed since last conversation).
+- **Option B**: Direct `manage_outreach` action=start with a winback-flavored campaign (pre-create a `winback_<your-tenant>` campaign — tone: empathetic, no apology, lead with what changed since last conversation).
 
 Step 7 — Success tracking (auto). The calendar webhook records the impact event, equivalent to:
 ```

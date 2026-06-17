@@ -21,7 +21,7 @@ Call `get_engagement_review` with your assigned `engagement_ids`, `content_lengt
 - `polish_provenance.polished_floor.regressed` — true means the backend's floor rewrite was worse than first_draft and was reverted (signal that the rules are hard for this draft)
 - `validator_failures` — structural failures recorded by the backend (e.g. `["banned_opener:Yep","no_specific_marker:0/1"]`). Treat as a checklist.
 - `target_post_text` — what the prospect actually posted
-- `person_id`, `person_name`, `person_title`, `match_score`, `segment_name` — person context
+- `person_id`, `person_name`, `person_title`, `match_score`, `campaign_name` — person context
 - `source` — `warming` / `nurture` / `marketing`
 - `budget_status` — sender daily quota
 - `schema_version` + `rules_version` — backward-compat signals

@@ -10,11 +10,11 @@ description: >-
 
 You are the YCombinator harness-mode source for `/pipeline-fill`. You scrape YC's public directory, extract founder LinkedIn URLs, dedup, and hand a candidate list to the orchestrator. No deep research, no harness gate, no save chain in this skill — that's all in `pipeline-fill/RESEARCH-ENGINE.md`.
 
-This is the answer to "DFW CFOs Sales Nav is dead, what now?" — pivot to YC, get 30 founders into the segment in ~15 minutes.
+This is the answer to "DFW CFOs Sales Nav is dead, what now?" — pivot to YC, get 30 founders into the campaign in ~15 minutes.
 
 ## Inputs
 
-- `segment`: target segment (single)
+- `campaign`: target campaign (single)
 - `count`: target number of imports (default 50)
 - `filters` (REQUIRED — no defaults; operator must specify at least one):
   - `team_size_min` / `team_size_max` (proxy for funding stage)
@@ -27,9 +27,9 @@ If the operator runs the skill without filters, prompt: "YC has 5K+ companies �
 
 ## Workflow
 
-### Step 1: Load segment ICP
+### Step 1: Load campaign ICP
 
-Call `fetch` type=research_playbook id=<segment_id> to load ICP context. The downstream subagents need it for classification; capture it now to pass forward.
+Call `fetch` type=research_playbook id=<campaign_id> to load ICP context. The downstream subagents need it for classification; capture it now to pass forward.
 
 ### Step 2: Algolia connectivity precheck
 
@@ -149,7 +149,7 @@ Emit the canonical handoff prompt (defined in `pipeline-fill/RESEARCH-ENGINE.md`
 ```
 Candidate list ready: {N} prospects from yc.
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and segment {segment_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
 
 Continue automatically? (y/n)
 ```

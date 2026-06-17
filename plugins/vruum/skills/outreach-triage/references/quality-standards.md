@@ -8,7 +8,7 @@ Every outreach message must pass one test: "Would the person sending this actual
 
 ## Tone and Voice
 
-The sender's identity and tone vary by company. Some senders are founders, some are AEs, some are BDRs. The segment's tone instructions define the specific voice. Always follow them.
+The sender's identity and tone vary by company. Some senders are founders, some are AEs, some are BDRs. The campaign's tone instructions define the specific voice. Always follow them.
 
 **Universal rules that apply to every sender:**
 
@@ -53,16 +53,16 @@ This matters more as touch count increases. A 5-touch sequence has fewer angles 
 
 ## Touch Sequence Compliance
 
-Each segment defines its own touch sequence with per-touch instructions, channel, timing, and format constraints. These are the source of truth for what each touch should do.
+Each campaign defines its own touch sequence with per-touch instructions, channel, timing, and format constraints. These are the source of truth for what each touch should do.
 
 When reviewing a message:
-- Check the touch_number against the segment's touch_sequence
+- Check the touch_number against the campaign's touch_sequence
 - Read the per-touch instructions (these are one-sentence intents the writer interprets)
 - Verify the message follows the intent (e.g., "No pitch, no product mention" means exactly that)
 - Check word/character limits specified for that touch
 - Verify the CTA approach matches the touch stage (early touches typically use questions, later touches may include calendar links, breakup touches have no ask)
 
-Do NOT apply hardcoded assumptions about what any touch number should do. A T4 might be a breakup in a 5-touch sequence but a mid-funnel touch in a 15-touch sequence. Always read the segment's specific instructions.
+Do NOT apply hardcoded assumptions about what any touch number should do. A T4 might be a breakup in a 5-touch sequence but a mid-funnel touch in a 15-touch sequence. Always read the campaign's specific instructions.
 
 ## Personalization Standards
 
@@ -83,22 +83,22 @@ If personalization is surface-level and better data exists in the review context
 
 ## Vertical and Industry Language
 
-Each segment's selling strategy includes vertical context with industry-native terminology. Messages should use the language the prospect uses, not generic sales language.
+Each campaign's selling strategy includes vertical context with industry-native terminology. Messages should use the language the prospect uses, not generic sales language.
 
 When reviewing:
-- Check if the message uses terms from the segment's vertical context
-- Flag messages that use generic business language when the segment specifies industry terminology
+- Check if the message uses terms from the campaign's vertical context
+- Flag messages that use generic business language when the campaign specifies industry terminology
 - The selling strategy's role adaptation section tells you how to frame things differently for different titles (CEO vs VP vs Director, etc.)
 
-Do NOT hardcode vertical knowledge. Always pull it from the segment instructions for that specific message.
+Do NOT hardcode vertical knowledge. Always pull it from the campaign instructions for that specific message.
 
 ## Channel-Specific Rules
 
 **LinkedIn connection requests**: Hard 280 character limit. No exceptions. Count characters, not words.
 
-**LinkedIn DMs**: Keep within the word limit specified per touch in the segment's touch sequence. No bullet points or numbered lists. Write like a chat message, not an email.
+**LinkedIn DMs**: Keep within the word limit specified per touch in the campaign's touch sequence. No bullet points or numbered lists. Write like a chat message, not an email.
 
-**Email**: Subject line matters. Can be longer and more structured than LinkedIn. Follow the segment's email formatting rules if specified.
+**Email**: Subject line matters. Can be longer and more structured than LinkedIn. Follow the campaign's email formatting rules if specified.
 
 ## Real Examples of Common Failures
 
@@ -113,7 +113,7 @@ Do NOT hardcode vertical knowledge. Always pull it from the segment instructions
 
 **Bad:** "Worth 15 min to see how it works?" / "Worth a quick call?" / "Open to a brief chat?"
 **Why it fails:** Every automated outreach tool uses this pattern. It's the single biggest AI tell in 2026.
-**Fix:** Follow the segment's CTA rules for that touch number. Early touches end with questions. Later touches with calendar links should frame them conversationally, not as a close.
+**Fix:** Follow the campaign's CTA rules for that touch number. Early touches end with questions. Later touches with calendar links should frame them conversationally, not as a close.
 
 ### Failure: Surface personalization
 

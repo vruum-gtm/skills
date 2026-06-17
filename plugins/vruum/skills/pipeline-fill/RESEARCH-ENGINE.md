@@ -4,7 +4,7 @@ This is the canonical research-engine doc referenced by `/pipeline-fill` (orches
 
 When a source skill produces a candidate list, it hands off to this engine via the canonical handoff prompt at the bottom of this doc. The engine then runs Steps 3–8: pre-flight → Phase A → Phase B → harness gate → save → report.
 
-The orchestrator's SKILL.md owns the front-of-flow: segment picker (Step 1), source picker (Step 2), and the inline manual-list parser. Everything from Step 3 onward is defined here. **Don't duplicate this doc in source skills** — link to it.
+The orchestrator's SKILL.md owns the front-of-flow: campaign picker (Step 1), source picker (Step 2), and the inline manual-list parser. Everything from Step 3 onward is defined here. **Don't duplicate this doc in source skills** — link to it.
 
 ---
 
@@ -37,7 +37,7 @@ All harness source skills produce candidate lists matching this shape exactly. T
 
 ## MCP-availability precheck (load-bearing — runs before Step 3)
 
-Before any other Step 3 work, call `fetch(type="research_playbook", id=<segment_id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
+Before any other Step 3 work, call `fetch(type="research_playbook", id=<campaign_id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
 
 > Vruum MCP not configured as a user-scoped server. Run:
 >
@@ -53,7 +53,7 @@ The research_playbook fetch also doubles as the ICP load — capture target_titl
 
 ## Step 3 — Pre-flight
 
-Per segment's candidate list:
+Per campaign's candidate list:
 
 1. **MCP precheck + ICP load** (above) — abort run on failure.
 2. **Batch dedup against existing pipeline.** Call `search(type="people", query=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
@@ -75,11 +75,11 @@ Dispatch one `vruum-company-deep-researcher` per unique uncached company. Subage
 Dispatch prompt template (fill in placeholders):
 
 ```
-You are vruum-company-deep-researcher. Research this company against segment "{segment_name}".
+You are vruum-company-deep-researcher. Research this company against campaign "{campaign_name}".
 
 company_name: {name}
 domain: {domain}
-segment_icp_summary: {one paragraph from the research_playbook fetch}
+campaign_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars or default $10K}
 
 Run your workflow (a–i) and return the structured output block.
@@ -108,7 +108,7 @@ Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent 
 Dispatch prompt template:
 
 ```
-You are vruum-prospect-deep-researcher. Research this prospect against segment "{segment_name}".
+You are vruum-prospect-deep-researcher. Research this prospect against campaign "{campaign_name}".
 
 full_name: {name}
 first_name: {first_name or null}
@@ -122,7 +122,7 @@ phase_a_signals:
   outbound_motion_score: {0|1|2 or null}
   triggers: [list or null]
 
-segment_icp_summary: {one paragraph from the research_playbook fetch}
+campaign_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars}
 
 Run your workflow (a–k) and return the structured output block. Note: do NOT call manage_person action=save_discovered or manage_outreach action=start — those are orchestrator-only and not in your tools list.
@@ -141,19 +141,19 @@ Each subagent returns: `topics_of_interest`, `recent_posts`, `opening_hooks[]` (
 
 This is a **coarse pre-filter** — its job is to avoid wasted backend save calls (`manage_person` action=save_discovered) on obvious dismisses. The **authoritative** gate is server-side `MatchAnalysisAgent.match_score >= 70` and runs inside that save call. The harness gate cannot override the backend gate; it can only dismiss before reaching it.
 
-Per surviving prospect, evaluate four criteria using the segment's playbook ICP and the Phase A + Phase B signals:
+Per surviving prospect, evaluate four criteria using the campaign's playbook ICP and the Phase A + Phase B signals:
 
-### 1. ACV class meets segment threshold?
-- `acv_class >= acv_floor_class` → pass this criterion (smb=$5K, mid=$5–50K, ent=$50K+; segment's `acv_floor` from playbook maps to a class)
+### 1. ACV class meets campaign threshold?
+- `acv_class >= acv_floor_class` → pass this criterion (smb=$5K, mid=$5–50K, ent=$50K+; campaign's `acv_floor` from playbook maps to a class)
 - If no → dismiss `acv_too_low`. Don't call `manage_person` action=save_discovered.
 
 ### 2. Outbound motion or hiring signal?
 - `outbound_motion_score > 0` OR explicit hiring trigger present → pass
-- If no → flag `warming_candidate` (still call `manage_person` action=save_discovered — operator may want to warm-track them; backend match analysis tells us if the segment fit is real)
+- If no → flag `warming_candidate` (still call `manage_person` action=save_discovered — operator may want to warm-track them; backend match analysis tells us if the campaign fit is real)
 
 ### 3. Decision-maker level senior?
 - `decision_maker_level == senior` → pass
-- If `mid` → pass with a note (segment owner decides if mid is acceptable)
+- If `mid` → pass with a note (campaign owner decides if mid is acceptable)
 - If `junior` → look for a more-senior person at the same `company_id` in the Phase B output set. If found, swap and rerun. If not, dismiss `decision_maker_junior`.
 
 ### 4. Trigger event in last 90d?
@@ -217,18 +217,18 @@ If the prospect's company isn't already cached and Phase A produced fresh resear
 
 ### c. Save discovered person (the backend authoritative gate runs here)
 
-Call `manage_person(action="save_discovered", payload={person_id: <from b>, segment_id: ...})`. This:
+Call `manage_person(action="save_discovered", payload={person_id: <from b>, campaign_id: ...})`. This:
 - Runs server-side `analyze_person_match` + signal eval
 - Returns `match_score` (0–100) and `quality_gate_pass` (bool, true iff `match_score >= 70`)
-- Writes the `company_people` row that puts the prospect into the segment
+- Writes the `company_people` row that puts the prospect into the campaign
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
-- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future segments.
+- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future campaigns.
 
 ### d. Bulk enrollment (only after all prospects saved)
 
-Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={segment_id: ...})` ONCE at the end of Step 7.
+Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={campaign_id: ...})` ONCE at the end of Step 7.
 
 - Per-prospect outcomes are returned (enrolled | skipped | failed). Surface per-prospect failures in the report.
 - If `harness_gate_status` is `warming` or `low_priority`, exclude from the bulk enroll list. Operator decides on review.
@@ -241,7 +241,7 @@ Collect all `person_id`s where `harness_gate_status == pass` AND backend `qualit
 Print to chat AND write to `.context/runs/pipeline-fill-{ISO-timestamp}.md` (workspace-local; `.context/` is gitignored per CLAUDE.md). Format identical for both surfaces.
 
 ```
-Pipeline fill complete: {segment_name} (source: {source}, mode: {harness|platform})
+Pipeline fill complete: {campaign_name} (source: {source}, mode: {harness|platform})
 
 Candidates flow:
   source       : {N from source skill output}
@@ -274,14 +274,14 @@ Pool status: healthy | drying up | exhausted ⚠️
 Audit log written: .context/runs/pipeline-fill-{timestamp}.md
 ```
 
-For multi-segment runs, group the report by segment and include a totals summary at the bottom.
+For multi-campaign runs, group the report by campaign and include a totals summary at the bottom.
 
 ---
 
 ## Edge cases + failure handling reference
 
 - **Source returns empty after dedup** — orchestrator says "All {N} candidates already in pipeline, nothing to research" and exits cleanly.
-- **Mid-flight cancellation** (operator Ctrl+C between Phase A and Phase B) — Phase A research is saved server-side. Re-running `/pipeline-fill` for the same segment + source picks up via batch dedup; no re-research of cached companies. Note this in the cancellation message.
+- **Mid-flight cancellation** (operator Ctrl+C between Phase A and Phase B) — Phase A research is saved server-side. Re-running `/pipeline-fill` for the same campaign + source picks up via batch dedup; no re-research of cached companies. Note this in the cancellation message.
 - **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness gate marks `gate_inconclusive` → backend decides via cached company research. See Step 4.
 - **Two-gate disagreement** — harness pass + backend fail (or vice versa) → see Step 7c. Stricter outcome wins for enrollment; both states surfaced in the report.
 - **Cached company research >90 days old** — Phase A re-runs the company subagent. Don't trust stale signals for an active fill.
@@ -299,7 +299,7 @@ When a HARNESS source skill completes its sourcing flow and has a candidate list
 ```
 Candidate list ready: {N} prospects from {source}.
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and segment {segment_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
 
 Continue automatically? (y/n)
 ```

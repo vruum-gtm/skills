@@ -64,7 +64,7 @@ For each row, include a one-line "hook" — a specific recent observation from `
 
 Step 6 — Hand off to outreach. Two options:
 - **Option A (recommended)**: Approve the ranked list, then for each account: run `/pipeline-fill` with that prospect_list — same Sales Nav harness flow, just sourced from the expansion cohort instead of cold. Tag the resulting `outreach_plans.tag` with `bowtie_pilot:expansion` so success-tracking finds them.
-- **Option B**: Direct `manage_outreach` action=start with an expansion-flavored segment (pre-create an `expansion_<your-tenant>` segment with the right tone — formal, ROI-focused, no opener-hooks since the customer already knows you).
+- **Option B**: Direct `manage_outreach` action=start with an expansion-flavored campaign (pre-create an `expansion_<your-tenant>` campaign with the right tone — formal, ROI-focused, no opener-hooks since the customer already knows you).
 
 Step 7 — Success tracking (auto). When a calendar webhook fires a `meeting_booked` event on an outreach plan tagged `bowtie_pilot:expansion`, the webhook handler in `backend/app/domains/calendar/` auto-records the impact event, equivalent to:
 ```

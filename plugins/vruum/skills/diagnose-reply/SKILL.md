@@ -28,7 +28,7 @@ From the person_360 response, read the full conversation thread. Identify:
 
 ## Step 3: Diagnose
 
-Call `get_performance_metrics` with `view='funnel'` and the segment_id to get segment-level reply rates by channel.
+Call `get_performance_metrics` with `view='funnel'` and the campaign_id to get campaign-level reply rates by channel.
 
 Synthesize a diagnosis:
 
@@ -37,13 +37,13 @@ Synthesize a diagnosis:
 **The message that got the reply:** T3 via LinkedIn DM, 'workflow_pain' angle, referenced their recent job posting for DevOps engineer (specific signal), ended with a question about their current tooling.
 
 **Why it likely worked:**
-- Channel: LinkedIn DM has [X]% reply rate in this segment (vs [Y]% email)
-- Angle: 'workflow_pain' converts at [X]% in this segment ([Z]x above average)
+- Channel: LinkedIn DM has [X]% reply rate in this campaign (vs [Y]% email)
+- Angle: 'workflow_pain' converts at [X]% in this campaign ([Z]x above average)
 - Signal: Referenced a specific, verifiable company signal (job posting)
 - CTA: Question CTA has [X]x lift over statement CTAs
 
 **What's different from the ghosted messages:**
-- T1 and T2 used 'cost_replacement' angle (segment average: [X]%)
+- T1 and T2 used 'cost_replacement' angle (campaign average: [X]%)
 - T1 had surface-level personalization (company name only)
 - T2 had no question CTA
 
@@ -52,10 +52,10 @@ Synthesize a diagnosis:
 ## Step 4: Suggest action
 
 **If positive reply** (interested, wants to learn more, asks a question):
-- "This combination is worth repeating: [angle + specific signal + CTA style]. Note it in your segment's strategy so the next batch follows the same shape."
+- "This combination is worth repeating: [angle + specific signal + CTA style]. Note it in your campaign's strategy so the next batch follows the same shape."
 
 **If negative reply** (not interested, wrong person, bad timing):
-- "This is the [N]th rejection using the '[angle]' strategy in this segment. If the pattern holds, consider deprioritizing this angle for the segment."
+- "This is the [N]th rejection using the '[angle]' strategy in this campaign. If the pattern holds, consider deprioritizing this angle for the campaign."
 
 **If objection or question** (pricing, timing, skepticism):
 - "This is a live conversation. The reply response draft should address [specific objection]. Check the outreach queue — there may be a draft pending."
@@ -64,5 +64,5 @@ Synthesize a diagnosis:
 
 - This skill is diagnostic, not prescriptive. It explains what happened; acting on the pattern (deprioritizing an angle, repeating a winning combination) is a separate, deliberate decision.
 - When the conversation has many touches, focus on the touch that triggered the reply, not the full sequence.
-- Always compare against segment averages to distinguish signal from noise. One data point doesn't make a pattern.
-- If `get_performance_metrics` doesn't have enough data for the segment, say so: "Not enough segment data to compare against. This is a single data point."
+- Always compare against campaign averages to distinguish signal from noise. One data point doesn't make a pattern.
+- If `get_performance_metrics` doesn't have enough data for the campaign, say so: "Not enough campaign data to compare against. This is a single data point."

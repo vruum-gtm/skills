@@ -14,18 +14,18 @@ You are the Sales Nav harness-mode source for `/pipeline-fill`. You produce a ca
 
 ## Inputs
 
-- `segment`: target segment (single — multi-segment lives in `/pipeline-fill`)
+- `campaign`: target campaign (single — multi-campaign lives in `/pipeline-fill`)
 - `count`: how many profiles to pre-filter (default 30)
 
 ## Workflow
 
 ### Step 1: Preview Sales Nav profiles
 
-Call `import_prospects(action="sales_nav_preview", payload={segment: ..., count: ...})`. Returns profile data + segment ICP context (target_titles, target_industries, value_proposition, positioning_angle, differentiators).
+Call `import_prospects(action="sales_nav_preview", payload={campaign: ..., count: ...})`. Returns profile data + campaign ICP context (target_titles, target_industries, value_proposition, positioning_angle, differentiators).
 
 ### Step 2: Dispatch `vruum-pipeline-filter` for ICP pre-filter
 
-Spawn the existing `vruum-pipeline-filter` subagent (defined at `.claude/agents/vruum-pipeline-filter.md`). It evaluates each profile against the segment ICP using cheap title/company matching — no LinkedIn API calls, no deep research. APPROVE / DISMISS per profile.
+Spawn the existing `vruum-pipeline-filter` subagent (defined at `.claude/agents/vruum-pipeline-filter.md`). It evaluates each profile against the campaign ICP using cheap title/company matching — no LinkedIn API calls, no deep research. APPROVE / DISMISS per profile.
 
 This is the cheap pre-filter — it removes obvious mismatches (titled-wrong, industry-wrong) before they enter Phase A/B deep research. Saves ~8 minutes per fill on a 30-profile preview that has 10 mismatches.
 
@@ -47,7 +47,7 @@ Emit the canonical handoff prompt (defined in `pipeline-fill/RESEARCH-ENGINE.md`
 ```
 Candidate list ready: {N} prospects from sales-nav-deep.
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and segment {segment_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
 
 Continue automatically? (y/n)
 ```
