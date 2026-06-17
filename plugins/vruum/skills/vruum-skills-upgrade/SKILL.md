@@ -67,10 +67,13 @@ Force a fresh check first, then run the flow above starting from Step 2:
 ~/.vruum/bin/vruum-skills-update-check --force
 ```
 
-If the forced check returns nothing, report `already on latest (v$(cat ~/.vruum/VERSION))` and exit.
+Interpret the forced check's output:
+- Returns nothing → genuinely up to date. Report `already on latest (v$(cat ~/.vruum/VERSION))` and exit.
+- `CHECK_FAILED <local>` → the registry could NOT be reached (network/sandbox), so we do **not** know if you're current. Report `upgrade check failed — couldn't reach the npm registry (network/sandbox); not necessarily on latest. Try again later or from an unsandboxed shell.` Do NOT claim "already on latest." (A forced check emits this whenever the fetch fails; a sandbox that blocks the registry is the common cause.)
+- `UPGRADE_AVAILABLE <old> <new>` → run the upgrade flow from Step 2.
 
 ## When something goes wrong
 
 - `npm install` fails with permissions → tell the user to re-run with `sudo` or fix their npm prefix. Don't auto-sudo.
 - `vruum-skills install` reports skipped skills → surface the conflict message verbatim; user needs to remove conflicting files.
-- Network failure on registry lookup → report `upgrade check failed, try again later` and continue with the original skill (don't block work on a transient fetch error).
+- Network failure on registry lookup → the forced check now emits `CHECK_FAILED <local>` (it no longer silently looks up to date). Report `upgrade check failed, try again later` and continue with the original skill (don't block work on a transient fetch error).
