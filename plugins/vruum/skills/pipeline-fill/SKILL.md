@@ -1,11 +1,12 @@
 ---
 name: pipeline-fill
 description: >-
-  Source-agnostic pipeline orchestrator. Picks a source per segment (Sales Nav /
-  YC / CSV / discovery), runs harness deep research, applies a pre-filter gate,
-  then saves into the segment via the backend authoritative match_score>=70
-  gate. Use when: fill pipeline, import prospects, daily imports, need more
-  prospects, discover prospects from scratch, deep research before import.
+  Source-agnostic pipeline orchestrator. Picks a source per campaign (Sales Nav
+  / YC / CSV / discovery), runs harness deep research, applies a pre-filter
+  gate, then saves into the campaign via the backend authoritative
+  match_score>=70 gate. Use when: fill pipeline, import prospects, daily
+  imports, need more prospects, discover prospects from scratch, deep research
+  before import.
 ---
 # Pipeline Fill
 
