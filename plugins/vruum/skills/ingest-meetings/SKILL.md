@@ -64,7 +64,7 @@ Per transcript, show the user the complete proposal before writing anything:
 - **Meeting:** the recap + meeting date.
 - **Tasks:** the action-item list.
 
-**Idempotency check (do this before writing):** confirm the transcript isn't already logged — in `get_person_360` for the resolved person, scan recent **meeting** activity for the marker `[vruum-meeting:<doc_id>]` in the summary. If it's there, this transcript was already ingested → skip it (don't re-log, don't re-create tasks).
+**Idempotency check (do this before writing):** confirm the transcript isn't already logged — in `get_person_360` for the resolved person, scan recent **meeting** activity for the marker `[vruum-meeting:<doc_id>]`. If it's there, this transcript was already ingested → skip it (don't re-log, don't re-create tasks). The marker must lead the summary (see Step 6) because `get_person_360` truncates each activity description to ~200 chars — a marker buried at the end is cut off and the scan misses it.
 
 The user **approves / edits / drops individual tasks / drops the whole transcript**. Only what they approve gets written.
 
@@ -80,12 +80,12 @@ For each approved transcript:
    - `deal_id` = the resolved deal (omit if none)
    - `summary` =
      ```
-     <1–2 sentence recap>
+     [vruum-meeting:<doc_id>] <1–2 sentence recap>
 
      Attendees: <names / emails>
-     Source: <transcript filename> — Google Drive  [vruum-meeting:<doc_id>]
+     Source: <transcript filename> (Google Drive)
      ```
-     The `[vruum-meeting:<doc_id>]` marker is what makes re-runs idempotent (Step 5 scans for it). Keep it verbatim in the summary.
+     The `[vruum-meeting:<doc_id>]` marker is what makes re-runs idempotent (Step 5 scans for it). It **must be the very first thing in the summary** — `get_person_360` truncates the activity description to ~200 chars, so a marker placed at the end is cut off and the dedup scan silently fails (re-runs would create duplicate meetings). Keep it verbatim, at the front.
 2. **Create each approved task** — `manage_tasks` action=create with:
    - `title` (the action item), `person_id` (+ `deal_id` if there is one)
    - `priority`, and `due_at` as ISO-8601 **only if** a date was actually parseable (omit otherwise)
