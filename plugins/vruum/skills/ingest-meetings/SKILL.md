@@ -20,18 +20,25 @@ This is an analyst's job, not a batch import. The attribution step (which person
 - **Drive connected to Vruum.** The transcripts must be syncing into the knowledge base via the connector. If KB search turns up none of your recent meetings, the connection may be down or PDFs may not be admitted — say so and stop; this skill reads what's synced, it doesn't fix the connector.
 - **Vruum MCP** for: `search` (kb + people reads), `get_person_360`, `manage_person` (to log the meeting as a `meeting`-kind interaction), `manage_tasks`, `get_tasks`.
 
-### Step 1 — Find the transcripts
+### Step 1 — Establish the recency window, then find NEW transcripts
 
-Search the knowledge base for meeting-shaped documents:
+**This skill is incremental and go-forward.** It ingests only meetings newer than the last one already logged, and never re-ingests the historical archive (a connected Drive can hold years of old transcripts — those stay KB-searchable but are not turned into CRM activity/tasks).
 
-- `search` type=kb with `filters={query: "meeting notes transcript", include_content: false}` for a compact catalog (id, name, summary, date).
-- Identify transcripts by their **filename shape**, not just the query — these tools name files predictably:
-  - **Gemini:** `… - Notes by Gemini`, `Notes by Gemini for …`, `… - Transcript`, `… - Live Notes`
-  - **Read.ai:** `… - Read Meeting Report`, `Read AI …`, `… Smart Notes`
-- Default to a **recent window** (e.g. the last 2 weeks) unless the user asks for more.
-- Present the candidates as a short list: `name · meeting date · one-line summary`. Ask which to process (default: **all that aren't already logged** — Step 5 detects those).
+1. **Get the watermark.** Call `get_daily_briefing` and read `latest_logged_meeting_at` — the date of the most recent meeting already logged for this tenant.
+   - **Set** → the window is everything *after* that date.
+   - **`null`** (no meeting logged yet — first run) → **ask the operator for a seed date** ("Ingest meetings since when? (default: last 30 days)"). Never silently default to the whole archive.
 
-> Alternative source: if you have a Google Drive MCP pointed at the same Drive and a transcript hasn't synced into the KB yet, you can read it directly (`search_files` → `read_file_content` for Docs, `download_file_content` for Read.ai PDFs) and feed the text into Step 3. Lead with the KB — it's tenant-scoped and is what the connector already pulled.
+2. **Find candidates.** `search` type=kb with `filters={query: "meeting notes transcript live notes", include_content: false}`. Connector results carry `source_kind='connector'`, the meeting date in `modified_at`, a Drive `url`, and predictable filename shapes:
+   - **Gemini:** `… - Notes by Gemini`, `… - Transcript`, `… - Live Notes`
+   - **Read.ai:** `… - Read Meeting Report`, `… Smart Notes`
+
+3. **Apply the window — drop everything at/before the watermark** (or the seed date). The Drive's historical archive is intentionally left KB-searchable-only, NOT re-ingested into the CRM. Logging an old meeting (and minting "follow up next week" tasks from a meeting that happened a year ago) is noise.
+
+4. Present the surviving candidates as a short list: `name · meeting date · one-line summary`. **If none are newer than the watermark, say so and stop** — there are no new meetings to ingest.
+
+> **One meeting, one record.** Gemini + Read.ai often produce 3-4 artifacts per meeting (`- Transcript`, `- Live Notes`, `Read Meeting Report`, `- Chat`). Pick the single richest one (usually `- Transcript` or `Notes by Gemini`) and ingest that — don't log the same meeting multiple times.
+
+> Alternative source: if you have a Google Drive MCP on the same Drive and a meeting hasn't synced into the KB yet, read it directly (`search_files` → `read_file_content` / `download_file_content`) and feed the text into Step 3. Lead with the KB — it's tenant-scoped and is what the connector already pulled.
 
 ### Step 2 — Read each chosen transcript in full
 
