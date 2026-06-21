@@ -36,7 +36,7 @@ Keep it short. The user knows their queue — they just need the numbers to deci
 
 ### Step 2: Build the dispatch list and categorize
 
-Once the user says go (or picks a focus area), pull the lightweight message queue via `search` with type=messages and limit=100 — make TWO cheap calls: `status=needs_draft` (the authoring lane) and `status=draft` (the review lane). Each returns message IDs, person names, categories, sequence numbers, and match scores WITHOUT message content — very cheap on tokens. Tag each item with its status so dispatch routes it to the right mode: `needs_draft` → authoring, `draft` → review. (Omitting the status filter returns the default actionable set — needs_draft + draft + approved — but pull the two lanes explicitly so already-approved messages awaiting send don't enter triage.)
+Once the user says go (or picks a focus area), pull the lightweight message queue via `search` with type=messages, `fields=compact` and limit=100 — make TWO cheap calls: `status=needs_draft` (the authoring lane) and `status=draft` (the review lane). `fields=compact` returns message_id, person_name, category, sequence_number, channel, status, match_score, touches_completed, and campaign_id WITHOUT message content — very cheap on tokens. Tag each item with its status so dispatch routes it to the right mode: `needs_draft` → authoring, `draft` → review. (Omitting the status filter returns the default actionable set — needs_draft + draft + approved — but pull the two lanes explicitly so already-approved messages awaiting send don't enter triage.)
 
 **Authoring mode (needs_draft items).** The backend no longer writes outreach prose — touches arrive as `needs_draft` items carrying the decision context (channel, touch number, signals) and no content. These are not rewrites; they are blank pages. For each needs_draft item the subagent AUTHORS the message: check the person's research freshness from the review item itself — `person_researched_at` / `company_researched_at` / `research_status` are on the payload, no extra fetch needed (older than ~14 days or missing → research first with WebSearch + the research reads, and persist what you learn via `research` action=save_person, plus action=save_company when you learned something about the company, so it compounds), then write the touch from scratch in the seller's voice against the same quality standards as any review, then submit it via `manage_messages` action=edit with the content — that transitions the item to a normal draft — and approve only what the user's standing instructions allow. Inbound replies also arrive as needs_draft (category inbound_reply, with the conversation attached): author the reply with full thread context. If a prospect turns out to be a bad fit at authoring time, skip the item and say why — authoring is the second qualification gate, not an obligation to write.
 
@@ -46,7 +46,7 @@ Categorize into three processing groups:
 2. **Follow-ups** (sequence_number >= 2) — need research and quality check
 3. **T1 initials** (sequence_number = 1) — usually structural check only
 
-Present the queue composition before dispatching:
+Present the queue composition before dispatching. For the counts in one call, use `search` with type=messages and `view=breakdown` — it returns grouped counts (by status, category, sequence/touch number, channel, and campaign) over the whole queue plus a compact items page, so you don't have to tally the pages yourself:
 
 "Oaklet: 15 T1s, 5 T2s, 1 T3, 0 replies. How do you want to handle each group?"
 
