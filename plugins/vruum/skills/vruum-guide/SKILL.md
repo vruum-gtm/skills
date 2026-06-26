@@ -48,9 +48,9 @@ Use the map to explain WHY a recommendation is next ("you have contacts but no c
 
 ## Step 3: Pick the mode
 
-**Onboarding mode** — when profile is missing/thin OR no campaigns exist. Walk the first-value sequence in order, one milestone per exchange, handing off at each step:
+**Onboarding mode** — when profile is missing/thin OR no campaigns exist. This is a freshly connected account: land one fast win in the very first exchange, then walk the sequence to the first reviewed draft, one milestone per exchange, handing off at each step:
 
-1. **Profile**: offer `manage_settings` action=auto_fill (bootstraps from their website), then review/correct together; save via action=profile. This powers every draft Vruum writes — worth five careful minutes.
+1. **Profile (the first quick win)**: run `manage_settings` action=auto_fill — Vruum reads their website and builds a starting picture of their ICP, value proposition, and target titles in under a minute. Show that back to them right away: that reveal *is* the first tangible payoff ("here's your revenue engine's starting picture, built from your site"). Then review/correct together and save via action=profile. This powers every draft Vruum writes — worth five careful minutes.
 2. **Channels**: check channel_status; for any disconnected channel send them the exact settings URL to connect LinkedIn/email (connection happens in the web plumbing, not the harness). Don't block the session on it — continue and circle back.
 3. **First contacts**: their CSV (`import_prospects`, offer custom-column mapping + list mirroring) or sourced fresh (`/pipeline-fill`).
 4. **First campaign**: invoke `/campaign-builder` and narrate.
