@@ -84,7 +84,13 @@ ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase 
 
 ## Workflow — Step 2: Pick source per campaign (only if `prospect_list` not provided)
 
-Per selected campaign, prompt:
+**Default to `discovery`.** Unless the operator named a source (in their prompt or a prior turn), don't lead with the picker — default to the `discovery` source (the describe-an-ICP path: source against the campaign's own ICP via WebSearch + Vruum MCP + LinkedIn search) and announce it in one line so it stays overridable, e.g.:
+
+> Sourcing {campaign_name} via discovery (ICP-based, long-tail). Reply `sales-nav`, `yc`, `csv`, or `picker` to switch.
+
+Why discovery is the default: keyword/Sales-Nav sources keep returning the same marquee names, which collide with already-enrolled prospects as a campaign matures — the Step 3 dedup then throws most of the batch away. Discovery anchors on the campaign's own ICP and reaches the long tail, deduping *before* research instead of after. Only render the full picker below when the operator asks to choose (`picker`), names a non-discovery source, or the discovery handler can't proceed.
+
+Per selected campaign, when the operator wants to choose the source explicitly, prompt:
 
 In **public mode** (the package builder strips the PLATFORM block from this skill before publishing), the picker shows only HARNESS modes, renumbered 1–4:
 
@@ -129,13 +135,17 @@ Drop blank lines and lines starting with `#` (treat as comments).
 Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "directors of operations at MSPs in DFW, recently posted about hiring". Harness sources candidates from scratch:
 
 1. **Anchor on campaign ICP** — read the campaign's existing ICP/company profile (via `fetch` type=campaign and `fetch` type=settings subtype=profile) and merge with the operator's brief. Show a one-line synthesis ("OK so: Series A-C SaaS, US, 50-500 ppl, founder/CEO/CTO titles") and confirm before sourcing.
-2. **Source companies first** — use harness tools to find candidate companies matching the brief:
-   - `WebSearch` for funding announcements, news, lists ("Series A SaaS 2026", "TechCrunch Series B SaaS announcements")
-   - `WebFetch` on Crunchbase / PitchBook / company directories
-   - `mcp__vruum__import_prospects` with action=sales_nav_search (payload={keywords, title, limit}) for company-fitting roles when the brief is people-shaped (e.g. "VPs of Eng at Series A SaaS")
-3. **Source people from each company** — for each candidate company, use `mcp__vruum__search` with type=companies and filters={domain, seniority} (Unipile-backed; respects LinkedIn rate limits) to find titles matching the campaign ICP. Cap at ~5 people per company to spread the discovery surface.
-4. **Dedup against existing pipeline** — for each discovered person, check `mcp__vruum__search` with type=people and a name/company keyword query so you don't research someone the campaign already has.
-5. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
+2. **Take a source inventory — use the operator's actual toolbox, don't hardcode one provider.** Different operators have different prospecting tools connected. Take inventory of any MCP servers or CLIs this session can reach (inspect or search your available tools for terms like `clay`, `apollo`, `zoominfo`, `enrich`, `company`, `contacts`) and pick the highest-signal one. Prefer in this order:
+   - **Structured B2B data / enrichment provider** (Clay, Apollo, ZoomInfo, Crunchbase, People Data Labs, Clearbit, …) — these firmographic-filter companies AND resolve the buying committee directly, and they reach the long tail, which is the entire point of discovery. If one is connected, it is the primary source. With Clay specifically, that's `find-and-enrich-company` (firmographic company pull) + `find-and-enrich-contacts-at-company` (committee). Mind provider credits / rate limits.
+   - **LinkedIn / Sales Nav** via `import_prospects action=sales_nav_search` — fine to *resolve people at a company you already found*, but it over-samples well-known names, so never use it as the primary company-discovery channel.
+   - **Email finder** — Hunter via `search type=companies {domain, seniority}`, or the provider's own email step — to fill the contact emails Phase B needs.
+   - **Web** (`WebSearch` / `WebFetch`) — always available; the universal fallback and a strong long-tail *company* finder (funding announcements, Crunchbase/PitchBook, vertical directories) even when a data provider is connected.
+
+   Announce the pick in one line ("Sourcing via Clay — firmographic pull + committee enrichment; web as backup") so the operator can redirect. If no enrichment provider is connected, say so and fall back to web + Hunter.
+3. **Source companies first, by firmographics — aim past the obvious names** — use the chosen tool to pull companies matching the merged ICP by stage / headcount / vertical / geo, NOT by marquee-name lookup (the saturated set IS the famous names). With a data provider, run the firmographic query directly; with web only, work funding announcements + directories.
+4. **Resolve the buying committee per company** — for each candidate company, pull ICP-matching titles via the same provider's contact enrichment (e.g. Clay `find-and-enrich-contacts-at-company`) or `search type=companies {domain, seniority}` (Hunter). Cap ~5 people/company to spread the surface.
+5. **Dedup against existing pipeline** — for each discovered person, check `search` type=people with a name/company keyword query so you don't research someone the campaign already has. This is where saturated names drop out, cheaply, before any research spend.
+6. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [source] [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
 
 Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.
 
