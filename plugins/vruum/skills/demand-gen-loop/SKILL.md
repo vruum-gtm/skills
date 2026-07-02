@@ -37,20 +37,26 @@ This is the same segmentation conversation `/campaign-builder` runs — **do not
 
 Hold the settled audience (the `{criteria}` you previewed, or a `matched_audience_id`). It is one of the four things the seller approves in Step 4.
 
-## Step 3: Creative — copy, then the visual
+## Step 3: Creative — copy, then the visual (image OR video)
 
-**Copy — hand off, don't write it here.** Invoke **`/create-content`** to co-produce the on-voice post. That skill owns author resolution, signal grounding, the steer→draft loop, and the publish guards — narrate it as it works, but never reproduce its drafting procedure. It leaves you a **draft** content post (its id is what Step 5 boosts). Keep the post a draft for now — publish is gated behind the seller's approval in Step 4.
+**Copy — hand off, don't write it here.** Invoke **`/create-content`** to co-produce the on-voice post. That skill owns author resolution, signal grounding, the steer→draft loop, and the publish guards — narrate it as it works, but never reproduce its drafting procedure. It leaves you a **draft** content post (its id is what Step 5 boosts). Keep the post a draft for now — publish is gated behind the seller's approval in Step 4. Two post-level decisions to settle WITH the copy (both settable at draft/edit):
 
-**Visual — generate it on your own tokens, then store it as a draft.** Vruum does not host image-generation infra, so *you* (the harness) generate the ad image yourself and hand Vruum the bytes:
+- **Identity** — `author_identity: 'member'` (a person's profile → the boost runs as a **Thought Leader Ad**, awareness/engagement only, and the author must be authorized via `manage_campaign` kind='ad' action='authorize_author') or `'organization'` (the **Company Page** → all objectives, incl. clicks; needs the Page set once via action='set_page').
+- **Destination** — if the goal is clicks, put the `external_link` on the post NOW (UTMs are stamped automatically). WEBSITE_VISIT without a destination is rejected at boost time.
 
-- Generate the image with your own image tools, guided by the settled goal + the approved copy's angle.
-- Store it as a **draft** creative via `manage_campaign` kind='ad' action='store_creative', payload `{image_base64 (raw base64, no data: URL prefix), generation_prompt, generation_provenance: {model, tool, generated_at, notes}}`. It lands as a draft library asset (zero spend, approval is separate). Pass the real `generation_prompt` and provenance so the asset is auditable.
+**Visual — generate or supply it, then store it as a draft.**
 
-Note the split the platform makes: the **stored creative** is the versioned/library visual asset; the thing the boost actually sponsors is the **published organic post** (Step 5). Attaching the image to the organic post is out of scope for this loop — store it as the creative asset and move on.
+- **Image**: generate with your own image tools, then store via `manage_campaign` kind='ad' action='store_creative', payload `{image_base64 (raw base64, no data: URL prefix), generation_prompt, generation_provenance: {model, tool, generated_at, notes}}`.
+- **Video** (mp4, ≤200MB, 3s–30min): store via the same action — `{media_url: <public https url>}` for a hosted file, or `{filename, size_bytes, content_type:'video/mp4'}` to get a **presigned upload URL** for a local file (PUT it with curl, then call store_creative again with `{creative_id}` to finalize). Optional `{thumbnail_base64}`. **Video stores are async** — poll `fetch type='ads' subtype='creative' id=<creative_id>` until `upload_status` leaves `'uploading'`; a `'failed'` status with a probe-code error means re-export the file, not retry.
+- A stored **video** creative can be attached to the organic post at publish (`manage_content action=publish` with `creative_id`) — one asset serves the organic post AND the ad. Images remain library assets only (image attach stays out of scope for this loop).
+
+A video creative can ALSO run without any post as **Direct Sponsored Content** (`boost` with `creative_id` instead of `content_post_id`) — but DSC is **metrics-only**: no organic post means no engager bridge. Prefer the published-post path when the bridge matters.
 
 ## Step 4: HARD approval gate — the money-and-feed checkpoint
 
-This is the load-bearing step. **Before any publish or any spend**, lay out all four things together and get the seller's explicit go-ahead on each:
+This is the load-bearing step. **Before any publish or any spend**, lay out all the pieces together and get the seller's explicit go-ahead on each — the original four PLUS the identity/objective pair VRU-659 added:
+
+0. **Identity + objective** — which identity the ad runs under (`member` ⇒ Thought Leader Ad / `organization` ⇒ Company Page) and the LinkedIn objective (e.g. `WEBSITE_VISIT` for clicks — requires the destination link; `thought_leader` allows only BRAND_AWARENESS/ENGAGEMENT). Show the destination URL (with its UTMs) when there is one.
 
 1. **Copy** — the exact post text from `/create-content`.
 2. **Creative** — the stored visual (generation prompt + provenance).
@@ -69,10 +75,12 @@ If the seller hesitates on any of the four, stop at draft and leave the loop res
 
 Only after the Step 4 approvals:
 
-1. **Publish the organic post** — `manage_content action=publish` on the draft from `/create-content`. (This inherits `/create-content`'s author guard: if the chosen author's LinkedIn account isn't connected/healthy, publish fails hard rather than posting under another identity — surface that to the seller, don't retry blindly.) This is the post the boost will sponsor.
-2. **Boost the published post** — `manage_campaign` kind='ad' action='boost', payload `{content_post_id: <the just-published post id>, budget: {daily_budget_cents | total_budget_cents}, audience: {criteria} OR {matched_audience_id}, duration_days?, approval_mode}`. Use the `approval_mode` the seller authorized in Step 4 — `draft` unless they explicitly approved the budget for `auto`. The boost double-submit case is handled for you (the endpoint is idempotent on the content post), so don't paper over a retry with a second call.
+0. **Identity prerequisites (first run only)** — a Page campaign needs the Company Page set (`manage_campaign` kind='ad' action='set_page'; call with no organization_urn to discover the candidates); a Thought Leader Ad needs the author authorized (action='authorize_author'). Errors from boost name the exact fixing call — run it and retry rather than improvising.
+1. **Publish the organic post** — `manage_content action=publish` on the draft from `/create-content` (pass `creative_id` to attach an approved video). This inherits `/create-content`'s author guard: if the chosen author's LinkedIn account isn't connected/healthy, publish fails hard rather than posting under another identity — surface that to the seller, don't retry blindly. **Wait for the post to actually be `published`** (a video publish transfers media and can take a while — re-read the post before boosting; never boost a still-publishing post).
+2. **Boost the published post** — `manage_campaign` kind='ad' action='boost', payload `{content_post_id: <the just-published post id>, vehicle?, objective: <the approved objective>, budget: {daily_budget_cents | total_budget_cents}, audience: {criteria} OR {matched_audience_id}, duration_days?, approval_mode}`. Vehicle is inferred from the post's identity — pass the objective explicitly (the default is BRAND_AWARENESS, which is NOT what a click campaign wants). Use the `approval_mode` the seller authorized in Step 4 — `draft` unless they explicitly approved the budget for `auto`. The boost double-submit case is handled for you (idempotent per source + audience + vehicle + objective), so don't paper over a retry with a second call. (DSC alternative: `creative_id` instead of `content_post_id` runs the video without a post — metrics-only, no bridge.)
+3. **If the campaign involves a video ad**, the LinkedIn media upload runs in the background after approval — the response tells you; poll `fetch type='ads' subtype='campaign' id=<campaign_id>` (~every 30s) until it reports live or a failure with its cause.
 
-Report back what went live: the published post and whether the boost is a draft awaiting approval in the queue or pushed.
+Report back what went live: the published post and whether the boost is a draft awaiting approval in the queue, pushed live, or uploading video in the background.
 
 ## Step 6: Monitor + bridge to outreach
 
