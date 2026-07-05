@@ -39,7 +39,7 @@ Hold the resolved `user_id` (or the decision to omit it) and use it consistently
 
 Call `fetch` with `type="seller_signals"`, passing the rough topic as `draft_brief` in `filters`. **If you resolved an author `user_id` in Step 2, pass it as the `id` argument** so the signal is *that person's*, not the caller's. (Omit `id` only in the legacy-fallback case from Step 2.) The brief drives a semantic re-rank, so the more concrete the topic, the more relevant the returned evidence.
 
-**Trust boundary — handle 403 honestly.** Authoring as another person is permission-guarded server-side (a non-owner can't author as a teammate). If this call (or the draft call in Step 5) returns **403**, STOP: tell the operator plainly that they aren't entitled to author as that person, and ask them to pick a permitted author or have an owner do it. Do **not** retry with the author param omitted — that would silently fall back to caller/company-scoped generation under a different identity than was asked for.
+**Trust boundary — handle 403 honestly.** Authoring as another person is permission-guarded server-side (a non-owner can't author as a teammate). If this call (or the draft call in Step 5) returns **403**, STOP: tell the operator plainly that they aren't entitled to author as that person, and ask them to pick a permitted author or have an owner do it. Do **not** retry with the author param omitted — that would silently fall back to caller/company-scoped signal under a different identity than was asked for.
 
 **Ground on `formatted_evidence`.** It is the EVIDENCE-wrapped rendering prepared for drafting — the surface you should read, quote, and reason over. The backend scrubs prospect names, emails, phone numbers, and URLs out of *everything* it returns (both `formatted_evidence` and the raw `bundle` text), so you don't have to police that yourself — there is no un-redacted surface on the response. Still prefer `formatted_evidence`: it is the prepared, sectioned grounding surface, where `bundle` is just the structured raw material behind it.
 
@@ -72,23 +72,31 @@ Which of these do you want to anchor the post on? And what's the angle — a les
 
 Let the seller refine. Iterate in conversation until the brief is **settled** — you and the seller agree on the angle, the anchor evidence, and the tone. Do not generate a draft while the brief is still moving.
 
-## Step 5: Draft on-voice — once
+## Step 5: Author on-voice in the harness — then save once
 
-**Only once the brief is settled**, call `manage_content` with `action="draft_post"`, passing the settled brief as `topic` in the payload. **If you resolved an author `user_id` in Step 2, pass the same value as `author_user_id` in the payload** so the draft is written from that person's voice/signal and the draft row is stamped with their `author_user_id` (this is what later carries the author through schedule/publish). Pass the *same* `user_id` you used for the signal pull — don't let signal and draft disagree. Omit `author_user_id` only in the legacy-fallback case. The same **403** trust-boundary rule from Step 3 applies here: on 403, STOP and ask for a permitted author — never retry with the param omitted.
+**The backend never writes content prose (VRU-676, permanently).** There is no post generator behind `manage_content` — `action="draft_post"` only returns authoring guidance. YOU author the post, here in the conversation, and this is a blank page, not a rewrite:
 
-The backend writes the draft in the seller's voice and grounds it on their seller signal internally — you do not pass the evidence yourself.
+**Only once the brief is settled**, write the post yourself in the seller's voice:
 
-The `draft_post` action creates a new draft row every time it runs. Call it **once** per post. Show the seller the returned draft.
+- Ground it on the anchor evidence the seller chose from `formatted_evidence` in Step 4 (or the voice profile alone in the profile-only fallback). Quote their real signal; never invent specifics.
+- Write like the seller talks — their phrasing, their stance from the settled brief — not like a content bot. The angle and tone you agreed in Step 4 are the spec.
+- Keep it inside LinkedIn's 3000-char cap.
 
-## Step 6: Iterate by editing — never regenerate
+**Pre-check before saving.** Run the draft through `check_prose` with `{surface: "content_post", content: <post>}` and treat the `failures[]` as an advisory checklist: fix what you agree with, keep what the seller deliberately wants — the annotations are hypotheses recorded for learning, not a pass/fail loop, and the seller's voice wins. Hold on to the returned `rules_version`.
 
-When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`. 
+Then save it **once** with `manage_content` `action="draft"`, payload `{content, topic_tags?, client_rules_version?}`. **If you resolved an author `user_id` in Step 2, pass the same value as `author_user_id` in the payload** so the draft row is stamped with their `author_user_id` (this is what later carries the author through schedule/publish). Pass the *same* `user_id` you used for the signal pull — don't let signal and draft disagree. Omit `author_user_id` only in the legacy-fallback case. The same **403** trust-boundary rule from Step 3 applies here: on 403, STOP and ask for a permitted author — never retry with the param omitted.
 
-**Check every revision before submitting it.** Run the revised text through `check_prose` with `{surface: "content_post", content: <revised post>}` first, and treat the `failures[]` as an advisory checklist: fix what you agree with, keep what the seller deliberately wants — the annotations are hypotheses recorded for learning, not a pass/fail loop, and the seller's voice wins. Pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` create and edit re-run the same deterministic lint server-side; annotations are recorded, never rejected. The one hard constraint is mechanical: keep the post inside LinkedIn's 3000-char cap, because an over-cap post fails at publish time.
+`action="draft"` creates a new draft row every time it runs. Save **once** per post, then show the seller the saved draft and iterate by editing.
 
-Never call `manage_content` with `action="draft_post"` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
+## Step 6: Iterate by editing — never re-save
 
-`manage_content` operates on the existing draft row, which already carries the `author_user_id` you stamped at generation. You do **not** re-pass the author here — schedule/publish inherit it from the row.
+When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the text yourself and update the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`.
+
+**Check every revision before submitting it**, the same way as the initial draft: run the revised text through `check_prose` with `{surface: "content_post", content: <revised post>}`, weigh the `failures[]` as advisory, and pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` draft and edit re-run the same deterministic lint server-side; annotations are recorded, never rejected. The one hard constraint is mechanical: keep the post inside LinkedIn's 3000-char cap, because an over-cap post fails at publish time.
+
+Never call `manage_content` with `action="draft"` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
+
+`manage_content` operates on the existing draft row, which already carries the `author_user_id` you stamped at save time. You do **not** re-pass the author here — schedule/publish inherit it from the row.
 
 ## Step 7: Save — draft, schedule, or publish
 
@@ -106,7 +114,7 @@ When the seller is happy with the draft, ask how they want to land it. **Default
 Because that hard failure lands at publish time — which for a scheduled post can be minutes or hours after you draft it — surface it **early** rather than letting the operator discover a dead, `failed` post later. So before you schedule or publish a post you authored as a specific person, **call the channel-status `fetch` (type=settings, subtype=channel_status) again — fresh, right now, immediately before the schedule/publish call.** Do **not** trust the Step 2 snapshot: an account can disconnect, change `status`, or exhaust its `quota` during drafting and refinement. Re-read `channels.linkedin_accounts` from this *new* response and find the author's account by the `user_id` you stamped on the draft, then:
 
 - If their account is present, `connected`, `status` is healthy, and `quota` is not exhausted **in the fresh response** → proceed with schedule/publish as normal (still behind the explicit "publish now" confirmation above).
-- If their account is **missing, not `connected`, shows a bad `status`, or has an exhausted `quota` in the fresh response** (or the fresh channel-status `fetch` call fails / omits `linkedin_accounts`, so you can't confirm the author's account is healthy) → **STOP. Do not schedule or publish.** The backend would reject this author-scoped publish as `Author account unavailable` anyway; tell the operator plainly so they don't end up with a `failed` post. Offer the safe paths: keep it as a draft, reschedule for after that person's account is reconnected / their quota resets, or pick a different permitted author and regenerate. There is no "publish under a different identity" escape hatch for an author-scoped post — the server will not do it; to post from another account the operator must deliberately regenerate the draft under that author (or with no author).
+- If their account is **missing, not `connected`, shows a bad `status`, or has an exhausted `quota` in the fresh response** (or the fresh channel-status `fetch` call fails / omits `linkedin_accounts`, so you can't confirm the author's account is healthy) → **STOP. Do not schedule or publish.** The backend would reject this author-scoped publish as `Author account unavailable` anyway; tell the operator plainly so they don't end up with a `failed` post. Offer the safe paths: keep it as a draft, reschedule for after that person's account is reconnected / their quota resets, or pick a different permitted author and save a fresh draft as them. There is no "publish under a different identity" escape hatch for an author-scoped post — the server will not do it; to post from another account the operator must deliberately re-author and save the draft under that author (or with no author).
 
 For a legacy / no-author post (you omitted `author_user_id` in Step 2) there is no specific author identity to protect, so the standard publish confirmation above is sufficient.
 
@@ -114,7 +122,7 @@ If the seller asks to reschedule a post that is **already scheduled**, be aware 
 
 ## Notes
 
-- Stay conversational. The value of this skill is the steer→draft→schedule loop, not a single generated blob. Surface evidence, let the seller choose the angle, and draft only when the brief is settled.
+- Stay conversational. The value of this skill is the steer→author→schedule loop, not a one-shot blob. Surface evidence, let the seller choose the angle, and author only when the brief is settled.
 - The seller's voice is the product. Ground the post in their real signal (`formatted_evidence`) whenever it's available; only fall back to a profile-only draft when there's genuinely no evidence to draw on.
 - Be honest about gaps. If there was no signal to retrieve, say "I didn't find recent signal on this — here's a draft from your voice profile" rather than inventing specifics.
 - This skill never deletes posts. If the seller wants to discard a draft, point them to `/marketing/content` rather than removing rows on their behalf.
