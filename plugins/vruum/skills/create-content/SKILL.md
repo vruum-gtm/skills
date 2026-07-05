@@ -84,6 +84,8 @@ The `draft_post` action creates a new draft row every time it runs. Call it **on
 
 When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`. 
 
+**Check every revision before submitting it.** Run the revised text through `check_prose` with `{surface: "content_post", content: <revised post>}` first, and treat the `failures[]` as an advisory checklist: fix what you agree with, keep what the seller deliberately wants — the annotations are hypotheses recorded for learning, not a pass/fail loop, and the seller's voice wins. Pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` create and edit re-run the same deterministic lint server-side; annotations are recorded, never rejected. The one hard constraint is mechanical: keep the post inside LinkedIn's 3000-char cap, because an over-cap post fails at publish time.
+
 Never call `manage_content` with `action="draft_post"` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
 
 `manage_content` operates on the existing draft row, which already carries the `author_user_id` you stamped at generation. You do **not** re-pass the author here — schedule/publish inherit it from the row.

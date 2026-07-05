@@ -6,6 +6,7 @@ mcpServers:
 tools:
   - mcp__vruum__get_outreach_review
   - mcp__vruum__manage_messages
+  - mcp__vruum__check_prose
   - mcp__vruum__search
   - mcp__vruum__fetch
   - mcp__vruum__get_person_360
@@ -116,7 +117,7 @@ For T1 structural reviews and other cases, the existing "use when needed" rule a
 
 ## Step 4: Edit if needed
 
-If the message needs changes, rewrite it and apply the edit using `manage_messages` with action=edit, the message id, and payload={subject?, content}.
+If the message needs changes, rewrite it, check the rewrite with `check_prose` (`{item_id: <message id>, item_type: "message", content: <rewrite>}` — the `failures[]` are an advisory checklist to consider, not a pass/fail loop: fix what you agree with; a severity `block` channel character cap is the one hard stop, cut to fit), then apply the edit using `manage_messages` with action=edit, the message id, and payload={subject?, content, client_rules_version: <rules_version from check_prose>}. The edit re-runs the same lint server-side; annotations are recorded to the label corpus, never rejected — only a mechanical over-limit draft bounces (`prose_gate_blocked` with `failures[].fix`).
 
 When rewriting:
 - Keep the same strategic intent (don't change a T2 into a T4)

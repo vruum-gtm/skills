@@ -16,17 +16,17 @@ Do not silently fall back to generic Claude responses.
 
 # Engagement Triage
 
-You review the user's pending LinkedIn engagement queue (warming comments, nurture reactions, marketing comments) and demand-gen content posts. Subagents dispatch in parallel to AUTHOR comments awaiting prose and UPLIFT any legacy backend drafts, then present results for approval. Separate from `/outreach-triage` (which handles outreach messages).
+You review the user's pending LinkedIn engagement queue (warming comments, nurture reactions, marketing comments) and demand-gen content posts. Subagents dispatch in parallel to AUTHOR comments from the research dossier, run them through `check_prose` for advisory annotations, then present results for approval. Separate from `/outreach-triage` (which handles outreach messages).
 
 ## Why this is a skill and not just "call the tool"
 
-The backend no longer writes engagement prose (VRU-570: the harness authors everything). Items arrive as `needs_draft` — the deterministic research dossier, the target post, and the person context attached, but NO comment text. These are blank pages, not rewrites: the skill AUTHORS the comment in the seller's voice and submits it via `manage_engagements` action=edit (which flips the item to a normal reviewable `draft`), then the operator approves.
+The backend no longer writes engagement prose (VRU-570/VRU-671: the harness authors everything — `first_draft` and `polished_floor` no longer exist anywhere in the payload). Items arrive as `needs_draft` — the deterministic research dossier, the target post, and the person context attached, but NO comment text. These are blank pages, not rewrites: the skill AUTHORS the comment in the seller's voice, runs `check_prose` and weighs its annotations, and submits it via `manage_engagements` action=edit (which flips the item to a normal reviewable `draft`), then the operator approves.
 
 **Authoring is the second qualification gate.** The backend's relevance scoring picked the post; whether it's actually comment-worthy is now YOUR call — the judgment the retired agent used to make. If the post isn't worth a comment, recommend skip. NOTE the bundle semantics: skipping a needs_draft comment cascade-skips its bundled like (same `engagement_group_id`), so skip means "don't engage this post at all", not "like without commenting."
 
-Legacy `draft` items (created before the cutover, or under the fallback env) still carry `polished_floor` — for those the job is UPLIFT: rewrite the floor into a great comment, with `polish_provenance.source="skill"` so the edit diff is captured.
+**Annotations are advisory, not a pass/fail loop.** `manage_engagements` action=edit (and approve) re-runs the same deterministic lint server-side, but its findings are advisory annotations recorded to the label corpus — they never block a submission. The rules are hypotheses from a triage failure corpus; a rule only earns blocking severity once outcome data proves it matters. Run `check_prose` in item_id mode before submitting and treat the annotations as a checklist to CONSIDER: fix what you agree with, keep what you deliberately want, and let this skill's reviewer subagent judge taste. The one hard stop is mechanical: a draft over a channel's character limit is rejected per-item (`prose_gate_blocked` with `failures[].fix`) because it would fail at post time — cut it to fit.
 
-Reviewing inline burns tokens fast. Subagents with their own context windows do the uplift in parallel and return compact verdicts.
+Reviewing inline burns tokens fast. Subagents with their own context windows do the authoring in parallel and return compact verdicts.
 
 ## Subagent: `vruum-engagement-reviewer`
 
@@ -83,23 +83,21 @@ Spawn up to 4 subagents concurrently. For larger queues (15+), dispatch in waves
 
 #### What the subagent receives from `get_engagement_review`
 
-The MCP payload now carries the full four-front-doors quality stack per item:
+The MCP payload carries the authoring context per item (no backend prose — `first_draft`/`polished_floor` are gone):
 
-- `content` — what currently ships (= `polished_floor` when present, else `first_draft`)
-- `polished_floor` — backend's shippable-floor output (this is what your uplift starts from)
-- `first_draft` — pre-floor draft (use only for backward-compat fallback)
-- `dossier` — research dossier (`post_entities`, `author_recent_posts`, `prior_interactions`, `knowledge_hits`). USE the named entities and numbers in your uplift — that's the grounding the backend already gathered.
+- `content` — null for `needs_draft` items (correct, not an error); holds the authored comment once you submit the edit
+- `target_post_text` — what the prospect actually posted
+- `dossier` — research dossier (`post_entities`, `author_recent_posts`, `prior_interactions`, `knowledge_hits`). USE the named entities and numbers when you author — that's the grounding the backend already gathered.
 - `pitch_phrases` — phrases that must NEVER appear in marketing comments (per-tenant value_prop language)
-- `polish_provenance` — `{first_draft: {...}, polished_floor: {...skipped?, regressed?}, final?: {...}}`. Note whether the floor pass was `skipped` (model said the input was already good) or `regressed` (floor was worse and we reverted) — those signal that the input has known weaknesses.
-- `validator_failures` — structural failures the backend recorded (e.g. `["banned_opener:Yep", "no_specific_marker:0/1"]`). Treat as a checklist to fix during uplift.
-- `rules_version` + `schema_version` — backward-compat signal
-
-**Backward-compat:** if `polished_floor` is null (old queue rows pre-migration), use `content` as your input and skip the dossier-anchored grounding.
+- `polish_provenance` — flat dict `{source, model, at, rules_version}` recording who authored the current content
+- `validator_failures` — deterministic prose-gate codes recorded on the item (e.g. `["banned_opener:Yep", "no_specific_marker:0/1"]`). Treat as a checklist.
+- `judge_scores` — advisory LLM-judge output `{dimensions, flags, verdict}`. Never blocking — read the flags as review hints.
+- `rules_version` — the prose-rules pack version; echo it back as `client_rules_version` on submit
 
 Subagent prompt template:
 
 ```
-You are an engagement uplift agent for {company_name}.
+You are an engagement authoring agent for {company_name}.
 
 SENDER PROFILE:
 {sender_profile_block}
@@ -108,9 +106,10 @@ Engagement IDs: {comma_separated_ids}
 
 Call get_engagement_review with engagement_ids="{comma_separated_ids}" and content_length="full" to load your assigned items.
 
-Each item gives you the dossier, polished_floor, first_draft, pitch_phrases, and
-validator_failures. Your job is UPLIFT, not just review: take polished_floor and
-make it materially better when you can.
+Each item gives you the dossier, target_post_text, pitch_phrases, and any
+validator_failures/judge_scores. Your job is AUTHORING: write the comment
+from the dossier + target_post_text. There is no backend draft — content is
+null on needs_draft items and that is correct.
 
 Quality bar (ACQ framework):
 - Acknowledge: reference a specific phrase/number/named entity from the post.
@@ -119,52 +118,62 @@ Quality bar (ACQ framework):
 - Question: optional. Skip ~60% of the time.
 - Length: 15-40 words total. Hard limit 280 chars.
 
-Hard constraints:
+Quality constraints (each fires a gate annotation if violated — write to
+avoid them, but they are advisory, not blocking):
 - No em-dashes (—) or en-dashes (–). No curly quotes.
 - No banned openers (Yep, Great post, This is the part people skip, etc.).
 - Three-beat structure (three equal-length sentences) is the #1 AI tell — avoid.
 - No phrase from item.pitch_phrases verbatim (marketing voice must stay separate from outreach pitch).
 - No company/product names, URLs, or CTAs.
+- No explicit calendar dates more than 10 days past (stale_event_date).
+- Don't reuse a stat/claim you already used for a different prospect
+  (cross_prospect_repetition — recycled stats read as templated).
+- Never state a dossier fact about the TARGET in the sender's first person —
+  attribute it to the prospect (first_person_fabrication).
 
 For each engagement:
-1. Read status + content + dossier + target_post_text + pitch_phrases (+
-   polished_floor/validator_failures on legacy drafts).
-2. Branch on status:
-   **needs_draft → AUTHOR or FLAG** (this is the default post-VRU-570):
+1. Read status + dossier + target_post_text + pitch_phrases.
+2. Decide should-comment vs skip:
    - AUTHOR: write the comment from scratch — grounded in the dossier and
-     the actual post text, in the seller's voice, against the same quality
-     bars below. This is a blank page, not a rewrite. Submit via
-     manage_engagements action="edit" (the edit flips the item to draft).
+     the actual post text, in the seller's voice, against the quality bars
+     above. This is a blank page, not a rewrite.
    - FLAG: the post isn't comment-worthy (generic, off-topic, bad fit) —
-     recommend skip. Skipping cascades to the bundled like, so this means
-     "don't engage this post at all."
-   **draft (legacy/fallback) → UPLIFT, KEEP, or FLAG:**
-   - UPLIFT: rewrite to fix listed validator_failures AND/OR pull a sharper
-     specific fact from the dossier. Materially better, not lateral.
-   - KEEP: polished_floor is already strong. Don't edit.
-   - FLAG: structurally broken (off-topic, wrong stage, prospect bad fit).
-     Recommend skip + plan-stop cascade.
-3. If AUTHOR or UPLIFT, call manage_engagements with:
+     recommend skip with a one-line reason. Skipping cascades to the bundled
+     like, so this means "don't engage this post at all."
+3. If AUTHOR, check before submitting: call check_prose with
+     {item_id: "<id>", item_type: "engagement", content: "<your comment>"}
+   Item_id mode loads the item's real context (post, dossier, pitch phrases,
+   cross-prospect repetition window) — exact parity with the submission gate.
+   The failures[] are advisory annotations: a checklist to CONSIDER, not a
+   pass/fail loop. Fix what you agree with; keep what you deliberately want
+   and say why in REASONING. The only hard stop is a mechanical channel
+   character limit (severity "block") — cut to fit, that one is not
+   negotiable. Note the returned rules_version.
+4. Then submit via manage_engagements with:
      action="edit"
      id="<id>"
      payload={
-       "content": "<your uplifted comment>",
+       "content": "<your comment>",
+       "client_rules_version": "<rules_version from check_prose>",
        "polish_provenance": {
          "source": "skill",
          "model": "<your model — claude-opus-4-7, claude-sonnet-4-6, etc.>",
-         "at": "<ISO8601>",
-         "rewrite_notes": "<one line — what you changed and why>"
+         "at": "<ISO8601>"
        }
      }
+   The edit re-runs the same deterministic lint server-side; annotations are
+   recorded, never rejected. Only a mechanical over-limit draft bounces
+   per-item (error code prose_gate_blocked, with failures[].fix) — if that
+   happens, cut to fit and resubmit.
 
 IMPORTANT: Do NOT approve or skip engagements. Return recommendations only.
 The operator approves in Step 5.
 
 Return a structured summary for each item:
-ENGAGEMENT: {id} | TYPE: {reaction|comment} | PERSON: {name} | SOURCE: {warming|nurture|marketing} | RECOMMENDATION: {authored|uplifted|kept|flag} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | AUTHORED_OR_UPLIFTED: {yes/no} | COMMENT_TEXT: {the comment text, or "reaction" for likes} | VALIDATOR_FAILURES_FIXED: {comma-separated, or "none"}
+ENGAGEMENT: {id} | TYPE: {reaction|comment} | PERSON: {name} | SOURCE: {warming|nurture|marketing} | RECOMMENDATION: {authored|flag} | CONFIDENCE: {high|medium|low} | REASONING: {1-2 sentences} | AUTHORED: {yes/no} | COMMENT_TEXT: {the comment text, or "reaction" for likes} | PROSE_GATE: {clean | annotations noted: <codes you fixed or deliberately kept>}
 ```
 
-For high-value comments (match score 80+, nurture, cold marketing), use research mode: 1 comment per subagent. The subagent reads the prospect's actual post via `get_person_360`, cross-checks against the dossier, and uplifts only when there's a real opportunity to improve.
+For high-value comments (match score 80+, nurture, cold marketing), use research mode: 1 comment per subagent. The subagent reads the prospect's actual post via `get_person_360`, cross-checks against the dossier, and authors with that extra grounding.
 
 ### Step 5: Present results — always show content
 
@@ -178,6 +187,8 @@ Do NOT approve engagements without showing them to the user.
 2. **Edited comments**: Show the new comment, what changed, and why. User reviews each.
 3. **Flagged/skipped**: Show the issue and recommendation.
 
+Approve re-runs the prose lint server-side; annotations are recorded to the label corpus and never block an approve. The only way an approve comes back `prose_gate_blocked` is a mechanical channel over-limit — cut via `check_prose` + edit and re-approve; the reviewing human can pass `override_reason` for that rare case (honored only for privileged reviewers; recorded with the overridden codes).
+
 **Content posts:** Always show full post text with calendar context and past performance. User approves individually.
 
 ### Step 6: Skip cascade
@@ -187,6 +198,8 @@ When skipping an engagement because the prospect is a bad fit (not because the c
 "Keith Hemmert (match score 33) — weak fit, no evidence of relevant practice. Skip this engagement and stop warming for this person?"
 
 This bundles skip + stop plan since a bad-fit engagement almost always means warming should stop entirely. Only offer the cascade for fit-based skips, not quality-based edits.
+
+Always pass a one-line `reason` on every skip/reject (e.g. `reason="match score 33, no relevant practice signal"`). Reasons feed the prose_labels corpus that trains the gate — a skip without a reason is a wasted training example.
 
 ### Step 7: Early pattern detection
 

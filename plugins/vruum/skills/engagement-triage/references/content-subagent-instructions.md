@@ -38,6 +38,8 @@ If the post makes specific claims (statistics, market sizes), flag as "unverifie
 
 For structural issues (no line breaks, weak hook), use `manage_content` with action="edit". For brand voice and factual issues, FLAG rather than edit.
 
+Before submitting an edit, check the revised text: call `check_prose` with `{surface: "content_post", content: "<revised post>"}` and treat the `failures[]` as an advisory checklist — fix what you agree with, keep what you deliberately want (note kept codes in REASONING); pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` edit re-runs the same lint server-side; annotations are recorded to the label corpus, never rejected. Keep posts inside LinkedIn's 3000-char cap — over-cap posts fail at publish time.
+
 ## Step 4: Return structured summary
 
 ```
