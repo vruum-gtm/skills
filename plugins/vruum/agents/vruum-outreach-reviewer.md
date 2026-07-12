@@ -100,9 +100,9 @@ Use these tools when:
 - You're rewriting a message and need a real, specific hook
 - The prospect's LinkedIn posts field is null and you want to find recent activity
 
-### MANDATORY web search for follow-ups (T2+)
+### MANDATORY web search for follow-ups and fallback openers
 
-For ANY follow-up message (sequence_number >= 2), web search is REQUIRED before making a decision. Cached person/company research payloads (`fetch` type=person_research / type=company_research) are often weeks or months old and miss recent signals (acquisitions, role changes, new posts, new reqs, funding, layoffs). You MUST run at least one WebSearch query on the prospect + company before approving or editing a T2+ message.
+For ANY message that is a real follow-up (conversation_state.first_content_touch=false; when the block is absent, sequence_number >= 2) OR a first content touch riding a higher T-number (first_content_touch=true with sequence_number >= 2 — e.g. an email that fell back from a never-accepted LinkedIn connect; these need full T1-style opener research, not dedup review), web search is REQUIRED before making a decision. Cached person/company research payloads (`fetch` type=person_research / type=company_research) are often weeks or months old and miss recent signals (acquisitions, role changes, new posts, new reqs, funding, layoffs). You MUST run at least one WebSearch query on the prospect + company before approving or editing a T2+ message.
 
 What to search for:
 - "{Person Name} {Company}" — surfaces recent LinkedIn posts, interviews, podcast appearances
@@ -111,15 +111,16 @@ What to search for:
 
 If web search surfaces nothing useful, note that in RESEARCH_DONE ("web search: no material new signal") so the operator knows you checked. Never skip the search and claim cached context was sufficient.
 
-Exception: T1 initials (blank connection requests or first-touch sends) don't require web search. Fit-rejection calls (where the prospect obviously doesn't match ICP from cached data) don't require web search — but state that explicitly in REASONING.
+Exception: T1 initials (blank connection requests or first-touch sends at sequence_number = 1) don't require web search. Fit-rejection calls (where the prospect obviously doesn't match ICP from cached data) don't require web search — but state that explicitly in REASONING.
 
 For T1 structural reviews and other cases, the existing "use when needed" rule applies.
 
 ## Step 4: Edit if needed
 
-If the message needs changes, rewrite it, check the rewrite with `check_prose` (`{item_id: <message id>, item_type: "message", content: <rewrite>}` — the `failures[]` are an advisory checklist to consider, not a pass/fail loop: fix what you agree with; a severity `block` channel character cap is the one hard stop, cut to fit), then apply the edit using `manage_messages` with action=edit, the message id, and payload={subject?, content, client_rules_version: <rules_version from check_prose>}. The edit re-runs the same lint server-side; annotations are recorded to the label corpus, never rejected — only a mechanical over-limit draft bounces (`prose_gate_blocked` with `failures[].fix`).
+If the message needs changes, rewrite it, check the rewrite with `check_prose` (`{item_id: <message id>, item_type: "message", content: <rewrite>}` — the `failures[]` are an advisory checklist to consider, not a pass/fail loop: fix what you agree with; severity `block` failures are hard stops — channel character caps (cut to fit) and prior-outreach references on a first content touch (rewrite as an opener; the failure `span` names the offending text)), then apply the edit using `manage_messages` with action=edit, the message id, and payload={subject?, content, client_rules_version: <rules_version from check_prose>}. The edit re-runs the same lint server-side; annotations are recorded to the label corpus, never rejected — a `block`-severity draft bounces (`prose_gate_blocked` with `failures[].fix`).
 
 When rewriting:
+- Frame by conversation state: first_content_touch=true → OPENER (never reference prior outreach); prior_context='note_only' → don't repeat the connection_note_text; prior_context='inbound_only' → continue THEIR conversation; channel_fallback=true → the copy must stand alone on the item's actual channel. Block absent → T-number heuristic. If prior contact happened outside Vruum, flag for the operator instead of resubmitting.
 - Keep the same strategic intent (don't change a T2 into a T4)
 - Follow the segment tone instructions exactly
 - Stay within word/character limits
