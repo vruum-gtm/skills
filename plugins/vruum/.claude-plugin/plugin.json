@@ -1,6 +1,6 @@
 {
   "name": "vruum",
-  "version": "0.6.30",
+  "version": "0.6.31",
   "description": "Vruum AI skills + remote MCP server for B2B GTM teams. Slash commands for outreach triage, engagement triage, pipeline filling, prospect enrichment, and reply diagnosis, paired with the full Vruum MCP tool surface over OAuth 2.1.",
   "author": {
     "name": "Vruum AI",

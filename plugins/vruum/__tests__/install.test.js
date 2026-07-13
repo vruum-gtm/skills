@@ -151,6 +151,95 @@ test('isOurLink matches links into ~/.vruum/skills but not the operator sibling'
   });
 });
 
+test('commandInstall removes only public-owned links from legacy ~/.codex/skills', () => {
+  withHome(({ installer, tmp, vruumSkills }) => {
+    fs.mkdirSync(path.join(tmp, '.codex'), { recursive: true });
+    const legacyDir = path.join(tmp, '.codex', 'skills');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.symlinkSync(
+      path.join(vruumSkills, 'legacy-public'),
+      path.join(legacyDir, 'legacy-public'),
+      'dir',
+    );
+    const operatorSkill = path.join(
+      tmp,
+      '.vruum',
+      'skills-operator',
+      'current',
+      'skills',
+      'operator-skill',
+    );
+    fs.mkdirSync(operatorSkill, { recursive: true });
+    fs.symlinkSync(operatorSkill, path.join(legacyDir, 'operator-skill'), 'dir');
+    const foreignSkill = path.join(tmp, 'foreign-skill');
+    fs.mkdirSync(foreignSkill);
+    fs.symlinkSync(foreignSkill, path.join(legacyDir, 'foreign-skill'), 'dir');
+    fs.mkdirSync(path.join(legacyDir, 'real-skill'));
+
+    installer.commandInstall({ targets: [], dryRun: false });
+
+    assert.ok(
+      !fs.readdirSync(legacyDir).includes('legacy-public'),
+      'legacy public link should be removed, not merely left dangling',
+    );
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'operator-skill')).isSymbolicLink());
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'foreign-skill')).isSymbolicLink());
+    assert.ok(fs.existsSync(path.join(legacyDir, 'real-skill')));
+  });
+});
+
+test('commandInstall dry-run reports legacy cleanup without removing links', () => {
+  withHome(({ installer, tmp, vruumSkills }) => {
+    const legacyDir = path.join(tmp, '.codex', 'skills');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.symlinkSync(
+      path.join(vruumSkills, 'legacy-public'),
+      path.join(legacyDir, 'legacy-public'),
+      'dir',
+    );
+    const logs = [];
+    const originalLog = console.log;
+    console.log = (...args) => logs.push(args.join(' '));
+    try {
+      installer.commandInstall({ targets: [], dryRun: true });
+    } finally {
+      console.log = originalLog;
+    }
+
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'legacy-public')).isSymbolicLink());
+    assert.match(logs.join('\n'), /would-prune\s+legacy-public/);
+  });
+});
+
+test('commandInstall keeps legacy links when canonical reconciliation is blocked', () => {
+  withHome(({ installer, tmp, vruumSkills }) => {
+    const legacyDir = path.join(tmp, '.codex', 'skills');
+    const canonicalDir = path.join(tmp, '.agents', 'skills');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.mkdirSync(path.join(canonicalDir, 'vruum-skills-upgrade'), { recursive: true });
+    fs.symlinkSync(
+      path.join(vruumSkills, 'vruum-skills-upgrade'),
+      path.join(legacyDir, 'vruum-skills-upgrade'),
+      'dir',
+    );
+    const originalExit = process.exit;
+    process.exit = (code) => { throw new Error(`exit:${code}`); };
+    try {
+      assert.throws(
+        () => installer.commandInstall({ targets: [], dryRun: false }),
+        /exit:2/,
+      );
+    } finally {
+      process.exit = originalExit;
+    }
+
+    assert.ok(
+      fs.lstatSync(path.join(legacyDir, 'vruum-skills-upgrade')).isSymbolicLink(),
+      'legacy link must survive until canonical reconciliation succeeds',
+    );
+  });
+});
+
 // ─── commandUninstall stale scan ─────────────────────────────────────────────
 
 test('commandUninstall removes owned stale link, leaves foreign + non-symlink', () => {
@@ -182,6 +271,55 @@ test('commandUninstall dryRun deletes nothing', () => {
 
     installer.commandUninstall({ targets: [target], dryRun: true });
     assert.ok(fs.lstatSync(path.join(target, 'segment-doctor')).isSymbolicLink());
+  });
+});
+
+test('commandUninstall removes only public-owned links from legacy ~/.codex/skills', () => {
+  withHome(({ installer, tmp, vruumSkills }) => {
+    const legacyDir = path.join(tmp, '.codex', 'skills');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.symlinkSync(
+      path.join(vruumSkills, 'legacy-public'),
+      path.join(legacyDir, 'legacy-public'),
+      'dir',
+    );
+    const operatorSkill = path.join(
+      tmp,
+      '.vruum',
+      'skills-operator',
+      'current',
+      'skills',
+      'operator-skill',
+    );
+    fs.mkdirSync(operatorSkill, { recursive: true });
+    fs.symlinkSync(operatorSkill, path.join(legacyDir, 'operator-skill'), 'dir');
+    const foreignSkill = path.join(tmp, 'foreign-skill');
+    fs.mkdirSync(foreignSkill);
+    fs.symlinkSync(foreignSkill, path.join(legacyDir, 'foreign-skill'), 'dir');
+    fs.mkdirSync(path.join(legacyDir, 'real-skill'));
+
+    installer.commandUninstall({ targets: [], dryRun: false });
+
+    assert.ok(!fs.readdirSync(legacyDir).includes('legacy-public'));
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'operator-skill')).isSymbolicLink());
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'foreign-skill')).isSymbolicLink());
+    assert.ok(fs.existsSync(path.join(legacyDir, 'real-skill')));
+  });
+});
+
+test('commandUninstall dry-run preserves public-owned legacy Codex links', () => {
+  withHome(({ installer, tmp, vruumSkills }) => {
+    const legacyDir = path.join(tmp, '.codex', 'skills');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.symlinkSync(
+      path.join(vruumSkills, 'legacy-public'),
+      path.join(legacyDir, 'legacy-public'),
+      'dir',
+    );
+
+    installer.commandUninstall({ targets: [], dryRun: true });
+
+    assert.ok(fs.lstatSync(path.join(legacyDir, 'legacy-public')).isSymbolicLink());
   });
 });
 
