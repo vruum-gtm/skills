@@ -88,7 +88,7 @@ Report back what went live: the published post and whether the boost is a draft 
 The loop doesn't end at "boosted." Teach the operating rhythm:
 
 - **Engagement** — `fetch` type=post_analytics (omit the id for all posts, or pass the post id) for impressions / reactions / comments and the per-post `engagers` sample. `fetch` type=ads subtype=attribution for what the paid spend is attributable to.
-- **The bridge** — engagers on your own published/boosted posts are captured automatically and fanned out as activity; the cron bridges warm engagers toward outreach. The seller's job is the rhythm, not the plumbing: check the **outreach queue** for newly-bridged people, and run **`/engagement-triage`** to review and approve the engagement drafts and demand-gen content the post generates. Point them there — don't reproduce its review procedure.
+- **The bridge is YOU** — engagers on your own published/boosted posts are captured, researched, and ICP-scored automatically, and then they WAIT: nothing auto-enrolls into campaigns (VRU-721). ICP-passing engagers land on the engager review surface (`get_engagement_review` with `source='engagers'`; near misses shown with their scores) and the daily briefing nudges when any sit undecided past 72h. Run **`/engagement-triage`** (scope: engagers) to decide each one — campaign add or one-off via the existing tools, then record the decision with `acted_via` so the boost→engager→outcome funnel in `fetch type=ads subtype=attribution` stays measurable. Point them there — don't reproduce its review procedure.
 
 Close by naming what shipped this session (post live, boost drafted/pushed, first engagers visible) and what the next check-in should look at.
 
