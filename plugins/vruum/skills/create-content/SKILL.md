@@ -88,6 +88,17 @@ Then save it **once** with `manage_content` `action="draft"`, payload `{content,
 
 `action="draft"` creates a new draft row every time it runs. Save **once** per post, then show the seller the saved draft and iterate by editing.
 
+## Step 5.5: Attach media (optional — document/PDF carousel, image, or video)
+
+Carousels (document posts) are the top-performing organic format. If the seller has (or you produce) a PDF, image, or video for this post:
+
+1. Store the asset: `manage_campaign` kind='ad' action='store_creative'. Small files: payload `{asset_base64, filename}`. Real files (PDFs/videos — primary path): `{filename, size_bytes, content_type: 'application/pdf' | 'video/mp4'}` → PUT the file to the returned `upload_url` (`curl --fail-with-body -T <file> '<upload_url>'`), then call store_creative again with `{creative_id}` to finalize.
+2. Attach it: include `attachment_creative_id` in the draft payload (or add it later with `action="edit"`). Explicit `attachment_creative_id: null` on edit detaches.
+3. The stored `filename` renders as the LinkedIn document **title** — name it like a headline, not `export-final-v3.pdf`.
+4. Before publishing, open the `attachment_url` from `get_content_review post_ids=[<post_id>]` and review the actual file — it publishes under the seller's identity.
+
+The caption (`content`) is still required — an attachment never replaces the post text. Scheduled posts publish with their attachment automatically.
+
 ## Step 6: Iterate by editing — never re-save
 
 When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the text yourself and update the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`.
