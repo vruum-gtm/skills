@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vruum.ai/contracts/pipeline-fill/run-progress.schema.json",
+  "title": "Pipeline Fill Run Progress",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "state",
+    "phase",
+    "wave",
+    "wave_count",
+    "completed",
+    "total",
+    "failed",
+    "not_attempted",
+    "safe_retry_items",
+    "ambiguous_items",
+    "code"
+  ],
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "state": {
+      "enum": [
+        "running",
+        "completed",
+        "partial",
+        "paused",
+        "failed"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "company_research",
+        "person_research",
+        "assignment"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "wave": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "wave_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "completed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "not_attempted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "safe_retry_items": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "ambiguous_items": {
+      "type": "array",
+      "description": "Failed mutations whose commit status is unknown; inspect before replaying.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "elapsed_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "eta_seconds": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    }
+  }
+}

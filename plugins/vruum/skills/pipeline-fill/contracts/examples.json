@@ -1,0 +1,95 @@
+{
+  "source_policies": {
+    "clay_without_sales_nav": {
+      "version": "1",
+      "selected_source": "clay",
+      "source_mode": "preferred",
+      "prohibited_sources": [
+        "sales_nav",
+        "linkedin",
+        "csv"
+      ],
+      "allowed_fallbacks": [
+        "web",
+        "hunter"
+      ],
+      "company_wave_size": 10,
+      "person_wave_size": 5,
+      "transient_retry_attempts": 2,
+      "reason": "Named-account sourcing requested through Clay."
+    },
+    "clay_exclusive": {
+      "version": "1",
+      "selected_source": "clay",
+      "source_mode": "exclusive",
+      "prohibited_sources": [
+        "sales_nav",
+        "linkedin",
+        "csv"
+      ],
+      "allowed_fallbacks": [],
+      "company_wave_size": 10,
+      "person_wave_size": 5,
+      "transient_retry_attempts": 2,
+      "reason": "Use only Clay; stop if it is unavailable."
+    }
+  },
+  "progress": {
+    "company_wave": {
+      "version": "1",
+      "state": "running",
+      "phase": "company_research",
+      "provider": "clay",
+      "wave": 1,
+      "wave_count": 1,
+      "completed": 7,
+      "total": 7,
+      "failed": 0,
+      "not_attempted": 0,
+      "safe_retry_items": [],
+      "ambiguous_items": [],
+      "code": null,
+      "elapsed_seconds": 34,
+      "eta_seconds": 0
+    },
+    "person_wave": {
+      "version": "1",
+      "state": "partial",
+      "phase": "person_research",
+      "provider": "clay",
+      "wave": 2,
+      "wave_count": 4,
+      "completed": 9,
+      "total": 20,
+      "failed": 1,
+      "not_attempted": 10,
+      "safe_retry_items": [
+        "person-11",
+        "person-12",
+        "person-13",
+        "person-14",
+        "person-15",
+        "person-16",
+        "person-17",
+        "person-18",
+        "person-19",
+        "person-20"
+      ],
+      "ambiguous_items": [
+        "person-10"
+      ],
+      "code": "research_partial",
+      "elapsed_seconds": 58,
+      "eta_seconds": null
+    }
+  },
+  "recent_posts": [
+    {
+      "text": "We are opening a new clinic.",
+      "posted_at": "2026-07-20T14:00:00Z",
+      "share_url": "https://www.linkedin.com/feed/update/urn:li:activity:1",
+      "reaction_count": 12,
+      "comment_count": 3
+    }
+  ]
+}

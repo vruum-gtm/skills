@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vruum.ai/contracts/pipeline-fill/source-policy.schema.json",
+  "title": "Pipeline Fill Source Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "selected_source",
+    "source_mode",
+    "prohibited_sources",
+    "allowed_fallbacks",
+    "company_wave_size",
+    "person_wave_size",
+    "transient_retry_attempts"
+  ],
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "selected_source": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/provider"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source_mode": {
+      "enum": [
+        "preferred",
+        "exclusive"
+      ],
+      "default": "preferred"
+    },
+    "prohibited_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "allowed_fallbacks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider"
+      },
+      "uniqueItems": true,
+      "default": [
+        "web"
+      ]
+    },
+    "company_wave_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 10
+    },
+    "person_wave_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 5
+    },
+    "transient_retry_attempts": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 2
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "provider": {
+      "enum": [
+        "clay",
+        "sales_nav",
+        "linkedin",
+        "csv",
+        "yc",
+        "web",
+        "hunter",
+        "manual"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source_mode": {
+            "const": "exclusive"
+          }
+        },
+        "required": [
+          "source_mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allowed_fallbacks": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "properties": {
+              "selected_source": {
+                "const": "clay"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "clay"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "sales_nav"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "sales_nav"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "linkedin"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "linkedin"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "csv"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "csv"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "yc"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "yc"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "web"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "web"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "hunter"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "hunter"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "selected_source": {
+                "const": "manual"
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "manual"
+                }
+              }
+            },
+            "required": [
+              "selected_source",
+              "prohibited_sources"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "clay"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "clay"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "sales_nav"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "sales_nav"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "linkedin"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "linkedin"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "csv"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "csv"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "yc"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "yc"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "web"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "web"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "hunter"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "hunter"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_fallbacks": {
+                "contains": {
+                  "const": "manual"
+                }
+              },
+              "prohibited_sources": {
+                "contains": {
+                  "const": "manual"
+                }
+              }
+            },
+            "required": [
+              "allowed_fallbacks",
+              "prohibited_sources"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

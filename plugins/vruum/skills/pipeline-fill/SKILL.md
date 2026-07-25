@@ -14,7 +14,7 @@ You are a source-agnostic pipeline filler. You pick campaigns to fill, pick a so
 
 ## Why this skill exists
 
-Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), pre-filters against campaign ICP, then saves the qualified ones into the campaign via the backend's canonical gate.
+Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), scores against campaign ICP, then lets the backend enforce the fixed `match_score >= 70` gate.
 
 ## Where the heavy logic lives
 
@@ -51,13 +51,15 @@ The orchestrator's MCP precheck at the top of Step 3 (the `fetch` type=research_
 ## Inputs
 
 - `prospect_list` (optional): pre-built candidate list matching the canonical shape in `RESEARCH-ENGINE.md`. If provided, skip the source-picker step and go straight to Step 3 (pre-flight). This is how source skills hand off.
+- `source_policy` (optional): machine-readable provider policy matching `contracts/source-policy.schema.json`. It owns `selected_source`, `source_mode`, `prohibited_sources`, ordered `allowed_fallbacks`, bounded wave sizes, and transient retry attempts. Treat prohibited providers as unavailable: do not call status/list/search endpoints for them.
 - `campaign(s)`: target campaign(s); multi-campaign supported.
 - `mode`: `research-only` | `save` | `save-and-enroll` (default: `save-and-enroll`).
-- `gate_threshold`: minimum backend `match_score` to enroll (default: campaign's existing quality_gate).
 
 ## Workflow — Step 1: Show pipeline status & pick campaigns
 
-Call `import_prospects(action="sales_nav_searches", payload={action: "list"})` + `fetch(type="stats", subtype="outreach")` for queue depth + `search(type="campaigns")` for non-Sales-Nav campaigns. Present a numbered table with **per-campaign ETA**:
+Always call `fetch(type="stats", subtype="outreach")` for queue depth and `search(type="campaigns")` for campaign status. Call `import_prospects(action="sales_nav_searches", payload={action: "list"})` **only** when the operator explicitly selected Sales Nav and `source_policy.prohibited_sources` does not contain `sales_nav` or `linkedin`. A generic status check must never touch Sales Nav.
+
+Present a numbered table with **per-campaign ETA**:
 
 ```
 Pipeline status:
@@ -141,11 +143,15 @@ Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "direc
    - **Email finder** — Hunter via `search type=companies {domain, seniority}`, or the provider's own email step — to fill the contact emails Phase B needs.
    - **Web** (`WebSearch` / `WebFetch`) — always available; the universal fallback and a strong long-tail *company* finder (funding announcements, Crunchbase/PitchBook, vertical directories) even when a data provider is connected.
 
-   Announce the pick in one line ("Sourcing via Clay — firmographic pull + committee enrichment; web as backup") so the operator can redirect. If no enrichment provider is connected, say so and fall back to web + Hunter.
+   Apply `source_policy` before inventorying or calling providers. Validate the entire object against `contracts/source-policy.schema.json` before the first provider call. If `selected_source` is disconnected, stop with code `source_unavailable`; exclusive mode never substitutes, while preferred mode may use only the first connected entry in `allowed_fallbacks`. Announce the resolved policy in one line ("Sourcing via Clay — firmographic pull + committee enrichment; web as allowed backup; Sales Nav prohibited") so the operator can redirect.
 3. **Source companies first, by firmographics — aim past the obvious names** — use the chosen tool to pull companies matching the merged ICP by stage / headcount / vertical / geo, NOT by marquee-name lookup (the saturated set IS the famous names). With a data provider, run the firmographic query directly; with web only, work funding announcements + directories.
 4. **Resolve the buying committee per company** — for each candidate company, pull ICP-matching titles via the same provider's contact enrichment (e.g. Clay `find-and-enrich-contacts-at-company`) or `search type=companies {domain, seniority}` (Hunter). Cap ~5 people/company to spread the surface.
 5. **Dedup against existing pipeline** — for each discovered person, check `search` type=people with a name/company keyword query so you don't research someone the campaign already has. This is where saturated names drop out, cheaply, before any research spend.
 6. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [source] [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
+
+Emit progress objects matching `contracts/run-progress.schema.json` after every bounded wave. Company-provider actions run in waves of at most 10; person/LinkedIn/provider contact actions run in waves of at most 5. Never submit a mixed unbounded batch and wait without a progress update.
+
+Defaults when `source_policy` is omitted: `selected_source: null` (inventory connected discovery tools), `source_mode: "preferred"`, `prohibited_sources: []`, `allowed_fallbacks: ["web"]`, `company_wave_size: 10`, `person_wave_size: 5`, and `transient_retry_attempts: 2`. Operator language such as "no Sales Nav" or "no CSV" is parsed into `prohibited_sources` before validation and overrides defaults.
 
 Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.
 
@@ -161,5 +167,5 @@ Do not duplicate the engine logic in this skill — link operators back to the e
 
 - **Composability** with source skills: source skills produce candidate lists; this orchestrator runs the research engine. Both directions allowed (operator can run a source skill standalone or run /pipeline-fill as the front door).
 - **Real money costs** are in Phase B (LinkedIn API + Hunter calls + OpenAI tokens for the prospect subagent). Phase A is mostly WebFetch/WebSearch which is operator-network. The batch primitives in Step 3 keep dedup latency low (~2s vs 12s pre-batch).
-- **Harness offload framing**: deep research runs in your IDE (your tokens). The backend `MatchAnalysisAgent` runs the canonical gate (~$0.02/prospect on Vruum's bill). This split is intentional — see memory `project_harness_offload_strategy.md`.
+- **Harness offload framing**: deep research and the authoritative campaign score run in your IDE (your tokens). The backend validates the payload, records provenance, and mechanically enforces `match_score >= 70`; `MatchAnalysisAgent` is fallback-only for newly added people when a caller omits assessment. Duplicates retain their stored score unless a campaign move enqueues an asynchronous re-score.
 - **Audit trail**: every run writes to `.context/runs/pipeline-fill-{ISO-timestamp}.md`. Useful weeks later for "what did the YC fill on Apr 12 import?"

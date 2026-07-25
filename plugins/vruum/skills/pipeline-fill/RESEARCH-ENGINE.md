@@ -32,6 +32,43 @@ All harness source skills produce candidate lists matching this shape exactly. T
 - At minimum, each candidate needs **either** `linkedin_url` **or** (`name`-fields + `company`). Candidates with neither are skipped at Step 3.
 - `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
 - Field additions are additive only. Removing a field is a breaking change for source skills.
+- `source_policy`, candidate examples, and progress events have executable schemas under `contracts/`. Validate handoffs against them before provider calls.
+
+## Source-policy and recovery contract
+
+The canonical source policy is `contracts/source-policy.schema.json`. Validate it before
+inventorying providers. A selected source may not also be prohibited; exclusive mode
+has no fallbacks; ordered fallbacks may not contain prohibited sources. An explicitly
+selected disconnected source stops before the first external call.
+
+Every wave emits an object matching `contracts/run-progress.schema.json`, including
+`state`, `phase`, `wave`, `wave_count`, `completed`, `total`, `failed`,
+`not_attempted`, `safe_retry_items`, `ambiguous_items`, and `code`. A server 5xx puts
+the failing mutation in `ambiguous_items` because its commit status is unknown; only
+later not-attempted items go in `safe_retry_items`. Completed items are never replayed.
+
+Stable operator-visible codes:
+
+| Code | Meaning | Recovery |
+|---|---|---|
+| `source_policy_invalid` | contradictory or out-of-range policy | correct the named fields before any provider call |
+| `source_unavailable` | selected source is not connected | connect it or explicitly choose another source |
+| `source_prohibited` | attempted source violates policy | remove the call; never override implicitly |
+| `linkedin_identity_unresolvable` | profile is invalid/private/not found | use the next allowed structured fallback with the same `person_id` |
+| `linkedin_temporarily_unavailable` | timeout/429 after bounded retries | retry only the returned item later; do not switch silently |
+| `linkedin_auth_required` | LinkedIn account is disconnected/expired | reconnect LinkedIn |
+| `company_identity_conflict` | exact evidence points to different companies | correct the evidence; never auto-merge |
+| `company_resolution_failed` | company resolver returned no canonical row | retry once, then inspect resolver logs and evidence |
+| `company_research_save_failed` | company research persistence failed with unknown commit status | inspect stored rows before any replay |
+| `person_not_visible` | supplied person is outside the caller's tenant | use a tenant-visible person or omit `person_id` |
+| `person_not_found` | tenant membership points to a missing person | refresh the candidate list |
+| `person_identity_conflict` | fallback identifier belongs to another person | remove the conflicting identifier and review the provider result |
+| `person_research_save_failed` | person research persistence failed with unknown commit status | inspect stored rows before any replay |
+| `source_campaign_forbidden` | caller cannot remove people from their current campaign | ask the source-campaign owner to move them |
+| `research_confirmation_required` | assignment requires explicit approval | pause and show the preview; never self-confirm |
+| `research_partial` | some items failed or were not attempted | resume only `safe_retry_items` |
+
+Backend response details link to `backend/app/domains/people/README.md#named-account-source-errors`.
 
 ---
 
@@ -85,11 +122,11 @@ acv_floor: {dollars or default $10K}
 Run your workflow (a–i) and return the structured output block.
 ```
 
-Each subagent returns: `company_id`, `funding_data`, `growth_metrics`, `current_priorities`, `outbound_motion_score` (0/1/2), `acv_class` (smb/mid/ent), `sales_cycle_inference` (short/medium/long), `triggers[]`, `STATUS: ok | failed`, `CACHE_HIT`.
+Each subagent returns: `company_name`, `domain`, `funding_data`, `growth_metrics`, `current_priorities`, `outbound_motion_score` (0/1/2), `acv_class` (smb/mid/ent), `sales_cycle_inference` (short/medium/long), `triggers[]`, `STATUS: ok | failed`, `CACHE_HIT`. Subagents never persist; the orchestrator resolves `company_id` in Step 7 when the requested mode permits writes.
 
 **Wait for the wave to complete before Phase B.** Phase B inputs depend on Phase A's signals (or null if failed).
 
-**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness pre-filter gate then tags them `harness_gate_status: gate_inconclusive` (a fourth status alongside pass/warming/low_priority/dismiss). `manage_person` action=save_discovered is still called — the backend's `MatchAnalysisAgent` may have cached company research from earlier runs and gates them appropriately. Surface gate-inconclusive prospects in the final report so the operator can re-run the failed companies later.
+**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness tags them `harness_gate_status: gate_inconclusive`; the Step 7 rubric gives zero company/ACV and outbound points, so their authoritative score cannot exceed 50 and the backend-enforced gate cannot enroll them. Save them for operator review and surface them in the final report so the operator can re-run the failed companies later.
 
 **Inter-wave progress line.** After each wave (5–10 subagents):
 ```
@@ -102,6 +139,8 @@ Helps operators distinguish "still working" from "stuck."
 ## Step 5 — Phase B: prospect research
 
 **Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `research` action=linkedin_fetch and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
+
+**Malformed LinkedIn fallback:** if the selected candidate already has a Vruum `person_id` and LinkedIn returns an invalid/malformed-profile result, preserve that `person_id` and retry the enrichment once through the first allowed structured provider in `source_policy` (Clay when selected/connected). Pass the same `person_id` to `research(action="save_person")`. This is a provider fallback for one identity, not a new-person discovery. Never fall back on LinkedIn 429/rate-limit responses or timeouts; surface those for a later retry. If the fallback's email or LinkedIn URL belongs to another person, the backend returns `person_identity_conflict`; stop and surface it rather than dropping `person_id` and creating a duplicate.
 
 Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent file at `.claude/agents/vruum-prospect-deep-researcher.md`.
 
@@ -128,7 +167,7 @@ acv_floor: {dollars}
 Run your workflow (a–k) and return the structured output block. Note: do NOT call manage_person action=save_discovered or manage_outreach action=start — those are orchestrator-only and not in your tools list.
 ```
 
-Each subagent returns: `topics_of_interest`, `recent_posts`, `opening_hooks[]` (2–3, with source URLs), `decision_maker_level` (junior/mid/senior), `email_status` (found/pending), `role_start_date`, per-prospect `triggers[]`, `STATUS`. Note: `person_id` is NOT returned here — identity resolution happens in Step 7.
+Each subagent returns: `first_name`, `last_name`, `email`, `linkedin_url`, `title`, `company_name`, `company_domain`, `company_website`, `company_linkedin_url`, `topics_of_interest`, `recent_posts`, `opening_hooks[]` (2–3, with source URLs), `decision_maker_level` (junior/mid/senior), `email_status` (found/pending), `role_start_date`, per-prospect `triggers[]`, `STATUS`. Every `recent_posts` item uses the backend shape `{text, posted_at?, share_url?, reaction_count?, comment_count?}`; never send the retired `content`, `url`, `excerpt`, or `date` keys. Note: `person_id` is NOT returned here — identity resolution happens in Step 7.
 
 **Inter-wave progress line:**
 ```
@@ -139,7 +178,7 @@ Each subagent returns: `topics_of_interest`, `recent_posts`, `opening_hooks[]` (
 
 ## Step 6 — Harness pre-filter gate (orchestrator-side, pre-save)
 
-This is a **coarse pre-filter** — its job is to avoid wasted backend save calls (`manage_person` action=save_discovered) on obvious dismisses. The **authoritative** gate is server-side `MatchAnalysisAgent.match_score >= 70` and runs inside that save call. The harness gate cannot override the backend gate; it can only dismiss before reaching it.
+This is the categorical first half of the harness-authoritative gate. It avoids wasted backend saves for obvious dismisses and feeds the deterministic numeric assessment in Step 7c. The backend does not re-score a supplied assessment; it records the harness score and mechanically enforces `match_score >= 70`. `MatchAnalysisAgent` is fallback-only for newly added people when callers omit assessment; duplicates retain their stored score unless a campaign move enqueues an asynchronous re-score.
 
 Per surviving prospect, evaluate four criteria using the campaign's playbook ICP and the Phase A + Phase B signals:
 
@@ -149,7 +188,7 @@ Per surviving prospect, evaluate four criteria using the campaign's playbook ICP
 
 ### 2. Outbound motion or hiring signal?
 - `outbound_motion_score > 0` OR explicit hiring trigger present → pass
-- If no → flag `warming_candidate` (still call `manage_person` action=save_discovered — operator may want to warm-track them; backend match analysis tells us if the campaign fit is real)
+- If no → flag `warming_candidate` (still call `manage_person` action=save_discovered — operator may want to warm-track them; the Step 7 rubric records the weaker fit honestly)
 
 ### 3. Decision-maker level senior?
 - `decision_maker_level == senior` → pass
@@ -175,10 +214,16 @@ For non-dismiss outcomes, also set `dismiss_reason` to null and `flag` to the re
 
 ## Step 7 — Save chain (everyone except harness-gate dismisses)
 
+Apply the requested mode before any persistence:
+
+- `research-only`: stop before Step 7a. Return the researched preview and do not call `save_company`, `save_person`, `save_discovered`, or `manage_outreach`.
+- `save`: run Steps 7a–7c, but call `save_discovered` **without** `campaign_id`. This persists the tenant-visible prospect and gate result without assigning a campaign or starting outreach.
+- `save-and-enroll`: run the full chain. Pass `campaign_id` to `save_discovered`, then include passing prospects in Step 7d.
+
 Per surviving prospect:
 
 ### a. Save company research (once per company)
-If the prospect's company isn't already cached and Phase A produced fresh research, call `research(action="save_company", payload={company_name, domain, funding_data, growth_metrics, current_priorities})`. Skip if `CACHE_HIT: true` for that company.
+If the prospect's company isn't already cached and Phase A produced fresh research, call `research(action="save_company", payload={name: <Phase A COMPANY>, website: <Phase A DOMAIN or canonical URL>, funding_data, growth_metrics, current_priorities: <newline-joined descriptions + source URLs>})`. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string, so serialize the Phase A object list instead of passing the list through. Skip if `CACHE_HIT: true` for that company.
 
 ### b. Identity resolution + person research (load-bearing — corrects Codex Finding #6)
 
@@ -215,12 +260,56 @@ If the prospect's company isn't already cached and Phase A produced fresh resear
    - If the prospect already had `person_id` set on the candidate (e.g. operator pasted a Vruum person UUID), pass it explicitly in the payload: `research(action="save_person", payload={person_id: ..., ...})` — backend updates rather than creating a new record.
    - The response includes the `person_id`. Capture it for step c.
 
-### c. Save discovered person (the backend authoritative gate runs here)
+### c. Save discovered person (authoritative harness score, backend-enforced gate)
 
-Call `manage_person(action="save_discovered", payload={person_id: <from b>, campaign_id: ...})`. This:
-- Runs server-side `analyze_person_match` + signal eval
+Build the authoritative `assessment` from the campaign playbook plus Phase A/B evidence. Score mechanically so reruns agree:
+
+- Company/ACV fit: 30 points when the known ACV class meets the campaign floor; a known miss is a harness dismiss and never reaches Step 7.
+- Buying authority: 25 senior, 15 mid; a junior with no senior replacement is dismissed.
+- Outbound/hiring motion: 20 when present, otherwise 0 and tag `warming`.
+- Recent timing trigger: 15 when present, otherwise 0 and tag `low_priority`.
+- Evidence strength: 10 for a verified profile plus at least two cited sources, 5 for partial cited evidence, 0 for unverified evidence.
+- `gate_inconclusive` gets 0 for unknown company/ACV and outbound criteria, so it cannot exceed 50 without fresh company evidence.
+
+The score is the sum (0–100); 70+ passes. Send this exact shape:
+
+```json
+{
+  "match_score": 85,
+  "match_summary": "Two or three evidence-backed sentences against this campaign's ICP.",
+  "alignment_points": [
+    {
+      "point": "Specific alignment",
+      "evidence": "Cited fact and URL",
+      "confidence": 0.8,
+      "source_type": "harness_research"
+    }
+  ],
+  "concerns": [
+    {
+      "concern": "Specific gap",
+      "evidence": "Cited or explicitly missing evidence",
+      "severity": "blocker|warning|minor"
+    }
+  ],
+  "why_now": "Timing rationale with source",
+  "recommended_approach": "Campaign-relevant approach",
+  "overall_confidence": 0.8,
+  "scored_by": "harness:pipeline-fill"
+}
+```
+
+`match_summary` must be non-empty. Alignment items require `point` and `evidence`; concern items require `concern` and `evidence`. Confidence values are 0–1 and concern severity is exactly `blocker`, `warning`, or `minor`.
+
+Then call `manage_person(action="save_discovered", payload={person_id: <from b>, assessment: <object above>, ...})`:
+
+- `mode == save`: add `assessment_campaign_id: <campaign>` so the score is recorded against the campaign ICP, and omit `campaign_id` so no assignment or move occurs. New rows remain unassigned; duplicates keep their existing campaign assignment.
+- `mode == save-and-enroll`: add `campaign_id: <campaign>`; the backend uses it for both assessment provenance and assignment. Omit `assessment_campaign_id` unless it is the same campaign.
+
+This:
+- Records the harness assessment as authoritative and skips the backend LLM scorer
 - Returns `match_score` (0–100) and `quality_gate_pass` (bool, true iff `match_score >= 70`)
-- Writes the `company_people` row that puts the prospect into the campaign
+- Writes the tenant's `company_people` row; campaign assignment happens only when the payload includes `campaign_id`
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
@@ -256,7 +345,7 @@ Harness pre-filter gate:
   gate_inconclusive : {N}
   dismiss      : {N}  (top reasons: acv_too_low={N}, decision_maker_junior={N})
 
-Backend authoritative gate (match_score >= 70):
+Backend-enforced gate using the authoritative harness score (match_score >= 70):
   passed       : {N}
   failed       : {N}  (saved with research; operator can review via /enrich-prospect)
   request_failed : {N}  (retry candidates — surface in next run)
@@ -281,9 +370,9 @@ For multi-campaign runs, group the report by campaign and include a totals summa
 ## Edge cases + failure handling reference
 
 - **Source returns empty after dedup** — orchestrator says "All {N} candidates already in pipeline, nothing to research" and exits cleanly.
-- **Mid-flight cancellation** (operator Ctrl+C between Phase A and Phase B) — Phase A research is saved server-side. Re-running `/pipeline-fill` for the same campaign + source picks up via batch dedup; no re-research of cached companies. Note this in the cancellation message.
-- **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness gate marks `gate_inconclusive` → backend decides via cached company research. See Step 4.
-- **Two-gate disagreement** — harness pass + backend fail (or vice versa) → see Step 7c. Stricter outcome wins for enrollment; both states surfaced in the report.
+- **Mid-flight cancellation** (operator Ctrl+C before Step 7) — no new Phase A/B research has been persisted. Re-running `/pipeline-fill` reuses pre-existing fresh cache entries but repeats unfinished research waves. Note this honestly in the cancellation message.
+- **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness marks `gate_inconclusive` → Step 7 score is capped below the backend threshold. See Step 4.
+- **Categorical/numeric divergence** — a categorical `pass` can still score below 70 when evidence strength is weak. Enrollment requires both `harness_gate_status == pass` and backend `quality_gate_pass == true`; surface both states.
 - **Cached company research >90 days old** — Phase A re-runs the company subagent. Don't trust stale signals for an active fill.
 - **Manual-list cap** — if >100 lines pasted, orchestrator asks "{N} prospects pasted — process all, or first M? (a/N)".
 - **CSV >200 rows** — same prompt at Step 5 of csv-pipeline-fill.

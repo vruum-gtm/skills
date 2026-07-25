@@ -32,6 +32,18 @@ Call `search` with `type="people"` and the criteria (include `filters={research_
 
 Iterate with the seller until the cohort is right ("too broad — only the US ones" → add the region attribute). This is the step to get right; everything after is mechanical.
 
+### Named-account sourcing handoff
+
+If the criteria names organizations/accounts and the preview has fewer people than needed, do not create an empty campaign or pretend the accounts are contacts. Hand off the missing-account cohort to `/pipeline-fill` discovery before Step 3:
+
+- Build `source_policy` using `.agents/skills/pipeline-fill/contracts/source-policy.schema.json`.
+- Preserve every explicit provider instruction. Example: "use Clay, no Sales Nav or CSV" becomes `selected_source: "clay"`, `source_mode: "preferred"`, `prohibited_sources: ["sales_nav", "linkedin", "csv"]`, and an ordered `allowed_fallbacks` list.
+- Use the schema defaults unless the seller overrides them: company waves 10, person waves 5, and two retries for transient failures. `source_mode: "exclusive"` requires `allowed_fallbacks: []`.
+- Pass the named organizations and campaign criteria as the discovery ICP brief.
+- Set pipeline-fill `mode: "save"` explicitly. This persists approved people so their IDs can return here, but cannot enroll them or start outreach.
+- Let `/pipeline-fill` source companies first, resolve up to five matching people per company in bounded waves, preview the people, and return their IDs.
+- Resume here only with the approved person IDs. This handoff is sourcing only; it never launches outreach.
+
 ## Step 3: Create the campaign
 
 Two paths — ask which:
@@ -41,9 +53,9 @@ Two paths — ask which:
 
 ## Step 4: Assign the cohort
 
-Collect the person ids from the Step 2 preview (re-run the same `search` with a higher `limit` to get the full cohort if needed — paginate with `offset` for big cohorts) and call `manage_campaign` action=members id=<campaign uuid> payload={action: "add", person_ids: [...]}.
+Collect the person ids from the Step 2 preview (including IDs returned by the named-account handoff; re-run the same `search` with a higher `limit` to get the full cohort if needed — paginate with `offset` for big cohorts) and call `manage_campaign` action=members id=<campaign uuid> payload={action: "assign", person_ids: [...]}.
 
-For large cohorts, add in batches of a few hundred and report progress.
+For large cohorts, assign in bounded batches and report requested vs updated counts. If the response contains `requires_confirmation: true`, emit `state: "paused"` with code `research_confirmation_required`, stop, and show the preview to the seller. Never set `confirm: true` without their explicit confirmation. A source-campaign 403 is a visible failed item; a response that updates fewer people than requested is `state: "partial"` with code `research_partial`.
 
 ## Step 5: Review and launch — CONFIRMATION REQUIRED
 
@@ -59,5 +71,5 @@ If the seller wants a dry run, stop after Step 4 — the campaign exists with me
 ## Notes
 
 - Junk-safe personalization: contacts with garbage first names (single letters, org names) automatically get the no-name greeting variant — you don't need to filter them out of the cohort for that reason.
-- A person can be in many lists but holds ONE campaign assignment; adding to a campaign moves them. Say so if the cohort overlaps an active campaign — surface counts before Step 4.
+- A person can be in many lists but holds ONE campaign assignment; assigning to a campaign moves them. Say so if the cohort overlaps an active campaign — surface counts before Step 4.
 - Never call `manage_outreach` action=start without the Step 5 confirmation, and never auto-approve drafts; the outreach queue review (`/outreach-triage`) stays the quality gate.
