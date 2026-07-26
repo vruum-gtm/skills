@@ -28,15 +28,35 @@ For small queues (5 or fewer) or when subagents can't access MCP, review directl
 
 ### Step 1: Get the lay of the land
 
-Call `fetch` with type=stats and subtype=outreach to see the pending queue shape. The response carries `needs_draft_count` (unauthored touches awaiting authoring) alongside `draft_count` (authored, awaiting approval) — surface both so the authoring backlog is visible up front. Present a quick summary:
+Call `fetch` with type=stats and subtype=outreach to see the pending queue shape, then call `get_outreach_review` with `content_length=preview, limit=1` for authoritative review-state counts. Surface:
 
-"You have N to author (needs_draft, W of them WARM accepted-connection follow-ups), X reply responses, Y pending T1s, Z T2+ follow-ups. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
+- `needs_draft_count`: unauthored touches awaiting authoring
+- `draft_count`: authored touches awaiting approval
+- `approved_pending_send_count`: approved Vruum sends waiting on cadence/cooldown
+- `externally_scheduled_count`: Gmail/provider-scheduled rows protected by an external-send reservation
+
+Externally scheduled rows are intentionally excluded from actionable items. Never re-draft, approve, or manually resend them. Present a quick summary:
+
+"You have N to author (W WARM accepted-connection follow-ups), D drafts to review, A approved sends waiting on cadence, and E externally scheduled in Gmail. [Any critical alerts.] Want me to run full triage or focus on a specific category?"
 
 **Warm follow-ups outrank everything except replies.** The stats payload carries `needs_draft_warm_count`: unauthored `linkedin_message` touches to people who ACCEPTED the connection request. These are the highest-EV rows in the queue — a person who said yes to the invite is waiting on a first real message. When non-zero, lead the summary with it and default the triage order to: inbound replies → warm follow-ups → everything else.
 
 Keep it short. The user knows their queue — they just need the numbers to decide what to prioritize.
 
 **needs_draft items EXPIRE.** A nightly backend sweep (03:20 UTC) rejects any `needs_draft` row older than 14 days from creation — intended garbage collection, not an operator action. An expired touch is not lost forever (the plan reschedules and mints a fresh row about a week later), but the authoring work is deferred a cycle and the queue silently shrinks. The tools tell you: the stats payload carries `needs_draft_expiring_soon_count` (rows within 3 days of the sweep — surface it in the summary when non-zero), and each needs_draft item carries `expires_at` (its sweep deadline). Consequence for triage: author oldest-first, and if the queue is too big to clear in one session, clear the items closest to `expires_at` rather than sampling the freshest.
+
+### Gmail/Vruum reconciliation lane
+
+When the seller asks to audit or synchronize Gmail scheduling, do this before normal triage:
+
+1. Call `fetch` with `type=settings subtype=channel_status`. Select the intended sender mailbox from `channels.email.accounts[]` and use its public `id` as `account_id`; never invent or ask the seller for an internal provider id.
+2. Call `manage_messages` action=`reconcile_external_email`, id=<campaign uuid>, payload=`{account_id, action: "preview", after?, before?}`.
+3. Present matched, ambiguous, and unmatched counts. Preview is provider-read-only and mutation-free.
+4. If synchronization was requested or the seller approves the preview, call the same action with payload=`{account_id, action: "apply", preview_id}`. Apply only the exact preview; it creates/finalizes reservations without sending or resending anything.
+5. Call payload=`{account_id, action: "exceptions"}` and lead with blocked, ambiguous, unmatched, failed, or unverified contacts.
+6. Re-read `get_outreach_review` and verify `externally_scheduled_count` plus the actionable queue. A Gmail-scheduled row must never remain actionable.
+
+Manual Gmail edits require a fresh preview. Use guarded `hold`, `release`, or `mark_cancelled` only with the reservation id, a reason, and affirmative cancellation evidence or explicit human instruction. Reauthorization must preserve the provider identity and existing reservation; never create a replacement touch merely because the connector was refreshed.
 
 ### Step 2: Build the dispatch list and categorize
 
@@ -202,4 +222,5 @@ After outreach messages are processed, ask if the user wants to review the engag
 - **User wants to review a specific person:** pull that person's conversation with `fetch` (type=conversation) and review directly. No batch workflow.
 - **Subagent can't reach MCP tools:** fall back to inline review.
 - **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining in bulk with a single `manage_messages` call passing an id array (same action applied to every id, max 50 per call). Confirm first.
+- **Campaign plan settings drifted:** repair `max_touches` or `allowed_channels` through `manage_outreach` action=`update` with plan-id arrays. This preserves execution state; never update plan rows directly.
 

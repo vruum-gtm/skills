@@ -33,6 +33,7 @@ Build "your revenue engine today" from live reads — never from memory or assum
 - `search` type=people limit=1 filters={research_status: "all"} → total contacts (read the total, not the rows)
 - `search` type=deals limit=5 → deal pipeline existence
 - `fetch` type=stats subtype=outreach → sends, replies, meetings
+- `get_outreach_review` content_length=preview limit=1 → actionable, approved-pending-send, and externally scheduled counts
 - `search` type=content → whether an organic content motion is active
 
 Present a compact snapshot (5-8 lines, their numbers), positioned on the revenue-motion map (Step 2). If the company record or knowledge base shows a referral source ("referred by X"), acknowledge it and skip intake questions that referral context already answers.
@@ -64,6 +65,7 @@ Important boundaries: outreach/reply/content/comment prose is authored in the ha
 | Signal | Recommendation |
 |---|---|
 | Contacts sitting unenrolled | enroll into a campaign (`/campaign-builder` or `manage_campaign` action=members) |
+| Gmail/provider-scheduled rows or reconciliation exceptions | `/outreach-triage` Gmail/Vruum reconciliation lane; never recreate the email |
 | Outreach queue has pending drafts | `/outreach-triage` |
 | Engagement queue non-empty | `/engagement-triage` |
 | Replies without follow-up | `/diagnose-reply` on the interesting ones, then respond |

@@ -36,8 +36,9 @@ Iterate with the seller until the cohort is right ("too broad — only the US on
 
 If the criteria names organizations/accounts and the preview has fewer people than needed, do not create an empty campaign or pretend the accounts are contacts. Hand off the missing-account cohort to `/pipeline-fill` discovery before Step 3:
 
-- Build `source_policy` using `.agents/skills/pipeline-fill/contracts/source-policy.schema.json`.
+- Build `source_policy` using `pipeline-fill/contracts/source-policy.schema.json` from the installed skills bundle.
 - Preserve every explicit provider instruction. Example: "use Clay, no Sales Nav or CSV" becomes `selected_source: "clay"`, `source_mode: "preferred"`, `prohibited_sources: ["sales_nav", "linkedin", "csv"]`, and an ordered `allowed_fallbacks` list.
+- CSV and Sales Nav remain fully supported sources when the seller explicitly selects them. Source prohibitions are scoped to this run only; never turn one seller's preference into a global capability restriction or silently substitute a prohibited source.
 - Use the schema defaults unless the seller overrides them: company waves 10, person waves 5, and two retries for transient failures. `source_mode: "exclusive"` requires `allowed_fallbacks: []`.
 - Pass the named organizations and campaign criteria as the discovery ICP brief.
 - Set pipeline-fill `mode: "save"` explicitly. This persists approved people so their IDs can return here, but cannot enroll them or start outreach.
@@ -62,11 +63,27 @@ For large cohorts, assign in bounded batches and report requested vs updated cou
 Show the seller a launch summary before anything sends:
 - Campaign name, source of messaging (cloned from X / fresh)
 - Cohort size and criteria
-- Channels and cadence (from the campaign config)
+- Channels, cadence, and maximum touches (from the campaign config). Enrollment schedules the first action immediately; spacing between later touches must already be represented in the campaign cadence.
 
-Then ask explicitly: "Launch outreach to these N people?" Only after a clear yes, call `manage_outreach` action=start id=[person uuids] (native bulk; payload optional {max_touches, allowed_channels, start_immediately}).
+Then ask explicitly: "Launch outreach to these N people?" Only after a clear yes, call `manage_outreach` action=start id=[person uuids] (native bulk; payload optional `{max_touches, allowed_channels}`). Do not pass `start_immediately`; the MCP intentionally ignores it.
 
 If the seller wants a dry run, stop after Step 4 — the campaign exists with members and nothing sends until plans start.
+
+### Existing Gmail scheduling
+
+If Gmail already contains scheduled or sent campaign emails, reconcile them before approving, drafting, or starting replacement email touches:
+
+1. Call `fetch` with `type=settings subtype=channel_status`. Select the intended sender mailbox from `channels.email.accounts[]` and use its public `id` as `account_id`; never invent or ask the seller for an internal provider id.
+2. Call `manage_messages` action=`reconcile_external_email`, id=<campaign uuid>, payload=`{account_id, action: "preview", after?, before?}`.
+3. Show exact matched, ambiguous, and unmatched counts. A preview is read-only.
+4. When the seller asked to synchronize—or explicitly approves the preview—apply that exact snapshot with payload=`{account_id, action: "apply", preview_id}`. Applying creates/finalizes Vruum reservations; it never sends or resends email.
+5. Pull payload=`{account_id, action: "exceptions"}` for the exception-first rescue queue. Never guess a recipient or silently release a reservation.
+
+Provider-scheduled rows are protected from duplicate dispatch and excluded from actionable review. Surface `externally_scheduled_count` when verifying the campaign.
+
+### Repairing already-created plans
+
+If the seller changes maximum touches or allowed channels after plans exist, update the cohort through `manage_outreach` action=`update`, id=[plan uuids], payload=`{max_touches?, allowed_channels?}`. This preserves each plan's active/paused state. Report per-plan success, error, and not-attempted counts; never patch outreach-plan rows directly in the database.
 
 ## Notes
 

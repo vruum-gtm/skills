@@ -90,6 +90,8 @@ ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase 
 
 > Sourcing {campaign_name} via discovery (ICP-based, long-tail). Reply `sales-nav`, `yc`, `csv`, or `picker` to switch.
 
+CSV and Sales Nav are fully supported when selected. `source_policy` is a per-run routing contract: an explicit "use CSV" or "use Sales Nav" selects that capability; an explicit "no CSV" or "no Sales Nav" prohibits it only for this run. Never persist a seller's personal source preference as a tenant-wide capability restriction.
+
 Why discovery is the default: keyword/Sales-Nav sources keep returning the same marquee names, which collide with already-enrolled prospects as a campaign matures — the Step 3 dedup then throws most of the batch away. Discovery anchors on the campaign's own ICP and reaches the long tail, deduping *before* research instead of after. Only render the full picker below when the operator asks to choose (`picker`), names a non-discovery source, or the discovery handler can't proceed.
 
 Per selected campaign, when the operator wants to choose the source explicitly, prompt:

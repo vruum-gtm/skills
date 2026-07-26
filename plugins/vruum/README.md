@@ -63,6 +63,14 @@ Download and upload via **Settings → Customize → Plugins → "+"**.
 npx @vruum/skills install --target /path/to/skills/dir
 ```
 
+## Coexisting with operator skills
+
+The public and operator skill bundles can coexist in the same harness. For
+overlapping skill names, a valid operator-owned installation takes precedence.
+Public installs and uninstalls preserve the operator bundle's links and update
+checker. If an operator link becomes stale, the next public install restores
+the public skill instead of leaving a broken link.
+
 ## Skills
 
 <!-- generated:skills-begin -->
