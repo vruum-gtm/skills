@@ -93,7 +93,8 @@ For each approved transcript:
      Source: <transcript filename> (Google Drive)
      ```
      The `[vruum-meeting:<doc_id>]` marker is what makes re-runs idempotent (Step 5 scans for it). It **must be the very first thing in the summary** — `get_person_360` truncates the activity description to ~200 chars, so a marker placed at the end is cut off and the dedup scan silently fails (re-runs would create duplicate meetings). Keep it verbatim, at the front.
-2. **Create each approved task** — `manage_tasks` action=create with:
+2. **Record the impact event** — call `manage_account` with action=record_impact, id=<the person's company_id> (from `get_person_360`), and payload={practice: "meeting", event_type: "meeting_held", person_id, summary: <the 1–2 sentence recap, WITHOUT the marker>}. This stamps the account's `first/last_impact_at` and feeds the impact scoreboard — a held meeting is exactly the "value delivered" moment that table exists to record. Skip silently if the person has no linked company.
+3. **Create each approved task** — `manage_tasks` action=create with:
    - `title` (the action item), `person_id` (+ `deal_id` if there is one)
    - `priority`, and `due_at` as ISO-8601 **only if** a date was actually parseable (omit otherwise)
    - `assigned_to` = the rep running this (leave to self; only assign a teammate if you know their Vruum user id)

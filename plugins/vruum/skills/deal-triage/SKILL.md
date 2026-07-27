@@ -101,8 +101,11 @@ After presenting results, the user can request actions. Execute them using MCP t
 - **Close deal** → `manage_deal` action=won or action=lost (payload carries win_factors / loss_reason)
 - **Reopen deal** → `manage_deal` action=reopen with payload={stage}
 - **Mark stalled** → `manage_deal` action=stalled (records the stalled outcome; payload optional)
+- **Update account state** → `manage_account` action=state with id=<company_id> and payload={account_stage?, health_score?, arr_current?, arr_potential?, renewal_at?, notes?}. Do this whenever the review surfaced account-level facts: a stage that no longer matches reality (the backfilled stages have never been updated), a health read from the conversation, or ARR/renewal numbers the seller confirmed. The account row is what the impact scoreboard and deal_360 read — a stale stage there misleads every later review.
 
 For batch actions ("advance all deals in proposal"), confirm with the user before executing.
+
+**Account hygiene (every run):** for each reviewed deal's account, compare `account_state.account_stage` against what the deal review just showed (an `engaged`-stage account with a closed-won deal, or a `prospect` account with an active opportunity, is stale). Propose the corrected stage in the Step 3 summary and write it via `manage_account` action=state on approval. This is the write half of the accounts loop — the read half (scoreboard, deal_360) only works if reviews maintain it.
 
 ## Error handling
 
