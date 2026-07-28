@@ -2,25 +2,27 @@
 name: pipeline-fill
 description: >-
   Source-agnostic pipeline orchestrator. Picks a source per campaign (Sales Nav
-  / YC / CSV / discovery), runs harness deep research, applies a pre-filter
-  gate, then saves into the campaign via the backend authoritative
+  / YC / CSV / account list / discovery), runs harness deep research, applies a
+  pre-filter gate, then saves into the campaign via the backend authoritative
   match_score>=70 gate. Use when: fill pipeline, import prospects, daily
-  imports, need more prospects, discover prospects from scratch, deep research
-  before import.
+  imports, need more prospects, discover prospects from scratch, find buyers at
+  these companies, deep research before import.
 ---
 # Pipeline Fill
 
-You are a source-agnostic pipeline filler. You pick campaigns to fill, pick a source per campaign (Sales Nav / YC / CSV / discovery), and orchestrate harness deep research that gates against the campaign ICP before saving prospects into the backend pipeline.
+You are a source-agnostic pipeline filler. You pick campaigns to fill, pick a source per campaign (Sales Nav / YC / CSV / account list / discovery), and orchestrate harness deep research that gates against the campaign ICP before saving prospects into the backend pipeline.
 
 ## Why this skill exists
 
-Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), scores against campaign ICP, then lets the backend enforce the fixed `match_score >= 70` gate.
+Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, hand over a list of target accounts (the harness resolves the buying committee per account), or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), scores against campaign ICP, then lets the backend enforce the fixed `match_score >= 70` gate.
 
 ## Where the heavy logic lives
 
 Steps 3–8 (pre-flight, Phase A research, Phase B research, harness gate, save chain, audit-log report) are defined in `RESEARCH-ENGINE.md` (in this same skill directory). This skill owns:
 - Step 1: campaign picker (with ETA)
 - Step 2: source picker (conditional PLATFORM block + always-visible HARNESS block)
+- The committee-resolution shared step (companies → people; used by every company-producing source)
+- The account-list handler (company names/domains in, candidate list out)
 - The discovery-mode handler (paste candidates inline OR describe an ICP and source via harness tools)
 - The multi-campaign grammar
 
@@ -53,6 +55,7 @@ The orchestrator's MCP precheck at the top of Step 3 (the `fetch` type=research_
 - `prospect_list` (optional): pre-built candidate list matching the canonical shape in `RESEARCH-ENGINE.md`. If provided, skip the source-picker step and go straight to Step 3 (pre-flight). This is how source skills hand off.
 - `source_policy` (optional): machine-readable provider policy matching `contracts/source-policy.schema.json`. It owns `selected_source`, `source_mode`, `prohibited_sources`, ordered `allowed_fallbacks`, bounded wave sizes, and transient retry attempts. Treat prohibited providers as unavailable: do not call status/list/search endpoints for them.
 - `campaign(s)`: target campaign(s); multi-campaign supported.
+- `buyers_per_account` (optional): how many buying-committee members to resolve per company when the source produces companies rather than people. Range 1–5. Per-source defaults: `discovery` → 2 (the surface is unqualified — optimize for reach, spread across more accounts), `account_list` → 3 (the account is already qualified — optimize for depth on the committee). Precedence: explicit operator value > a target stated in the campaign description (e.g. "~2 per account") > the per-source default. Sources that produce people directly (Sales Nav, YC, contact CSVs, discovery Path A) ignore this input.
 - `mode`: `research-only` | `save` | `save-and-enroll` (default: `save-and-enroll`).
 
 ## Workflow — Step 1: Show pipeline status & pick campaigns
@@ -82,13 +85,23 @@ ETA estimates: ~2s for batch Step 3 dedup + ~30s/wave Phase A + ~60s/wave Phase 
 - Mark campaigns already at target with ✓ and don't number them
 - Show per-campaign ETA so operator can budget time
 
-**Wait for the user's response.** Parse: "all", "1, 3", "skip 2", "just the CFO ones", etc. Only proceed with the selected campaigns.
+**Buyers-per-account line (company-producing sources only).** When the source is already known to produce companies at Step 1 — the operator handed an account list, or named discovery with an ICP brief — append one line under the table so depth is an explicit decision, never a silent default:
+
+```
+Buyers per account: 3 (account-list default; range 1–5 — reply "buyers N" to change)
+```
+
+If the source isn't known yet at Step 1 (the common "fill my pipeline" path), defer this line to source-resolution time — the account-list handler and discovery Path B each confirm it before resolving. Wherever it renders, resolve the shown number via the `buyers_per_account` precedence in Inputs (explicit value > campaign-description target > per-source default), and name which rule produced it (e.g. "2 — campaign description says '~2 per account'").
+
+**Wait for the user's response.** Parse: "all", "1, 3", "skip 2", "just the CFO ones", "buyers 3", etc. Only proceed with the selected campaigns.
 
 ## Workflow — Step 2: Pick source per campaign (only if `prospect_list` not provided)
 
 **Default to `discovery`.** Unless the operator named a source (in their prompt or a prior turn), don't lead with the picker — default to the `discovery` source (the describe-an-ICP path: source against the campaign's own ICP via WebSearch + Vruum MCP + LinkedIn search) and announce it in one line so it stays overridable, e.g.:
 
-> Sourcing {campaign_name} via discovery (ICP-based, long-tail). Reply `sales-nav`, `yc`, `csv`, or `picker` to switch.
+> Sourcing {campaign_name} via discovery (ICP-based, long-tail). Reply `sales-nav`, `yc`, `csv`, `account-list`, or `picker` to switch.
+
+**Account-list auto-detect:** if the operator's input is a list of company names or domains with no person identities (no personal names, no `/in/` LinkedIn URLs, no emails — e.g. pasted company lines, or a spreadsheet whose only mappable column is `company`), that is the `account_list` source. Announce it ("Reading this as an account list — {N} companies; I'll resolve the buying committee per account") instead of defaulting to discovery or misreading the rows as contacts.
 
 CSV and Sales Nav are fully supported when selected. `source_policy` is a per-run routing contract: an explicit "use CSV" or "use Sales Nav" selects that capability; an explicit "no CSV" or "no Sales Nav" prohibits it only for this run. Never persist a seller's personal source preference as a tenant-wide capability restriction.
 
@@ -96,7 +109,7 @@ Why discovery is the default: keyword/Sales-Nav sources keep returning the same 
 
 Per selected campaign, when the operator wants to choose the source explicitly, prompt:
 
-In **public mode** (the package builder strips the PLATFORM block from this skill before publishing), the picker shows only HARNESS modes, renumbered 1–4:
+In **public mode** (the package builder strips the PLATFORM block from this skill before publishing), the picker shows only HARNESS modes, renumbered 1–5:
 
 ```
 Source for {campaign_name}?
@@ -104,10 +117,11 @@ Source for {campaign_name}?
     1. sales-nav-deep    — Sales Nav profiles + harness deep research
     2. yc                — scrape YC directory with filters you provide
     3. csv               — read a CSV file (path next), harness deep research
-    4. discovery         — paste candidates inline OR describe an ICP and I'll source them via WebSearch + Vruum MCP + LinkedIn search
+    4. account-list      — paste company names/domains (or a company-only CSV); I resolve the buying committee per account
+    5. discovery         — paste candidates inline OR describe an ICP and I'll source them via WebSearch + Vruum MCP + LinkedIn search
 ```
 
-The conditional rendering happens at package-build time, not at skill-runtime — when the orchestrator runs in operator mode it sees the 6-option block; when it runs in public mode (stripped package) it sees only the 4-option block. Source-skill dispatch logic below uses option labels (`sales-nav-platform`, `yc`, etc.), not numbers, so the renumbering is cosmetic.
+The conditional rendering happens at package-build time, not at skill-runtime — when the orchestrator runs in operator mode it sees the 7-option block; when it runs in public mode (stripped package) it sees only the 5-option block. Source-skill dispatch logic below uses option labels (`sales-nav-platform`, `yc`, etc.), not numbers, so the renumbering is cosmetic.
 
 Per source pick, dispatch:
 
@@ -115,10 +129,41 @@ Per source pick, dispatch:
 - `csv-platform` → invoke `/csv-platform-fill` (calls `import_prospects` action=csv_start; backend handles everything; same — skip Steps 3-8).
 - `sales-nav-deep` → invoke `/sales-nav-deep-fill` to produce a candidate list, then continue to Step 3 with it.
 - `yc` → invoke `/yc-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
-- `csv` → invoke `/csv-pipeline-fill` to produce a candidate list, then continue to Step 3 with it.
+- `csv` → invoke `/csv-pipeline-fill` to produce a candidate list, then continue to Step 3 with it. (A company-only CSV — no contact columns — routes to `account-list` instead; `/csv-pipeline-fill` documents the same redirect.)
+- `account-list` → use the account-list handler below (parse companies → committee resolution → candidate list), then continue to Step 3 with it.
 - `discovery` → use the discovery-mode handler below to produce a candidate list (handler branches: paste-shaped input → parse, prose ICP brief → harness sources via WebSearch + Vruum MCP + LinkedIn search), then continue to Step 3 with it.
 
 **Multi-campaign behavior:** campaigns run sequentially. Campaign 1's Step 7 (save chain + bulk enroll) completes before campaign 2's Step 3 starts. Predictable rate-limit behavior, simple progress narrative. Trade-off: 3-campaign fills are ~37min wall-clock vs ~22min if Phase A/B were overlapped across campaigns. Cross-campaign overlap is a v2.
+
+## Committee resolution (shared step: companies → people)
+
+The canonical candidate shape in `RESEARCH-ENGINE.md` is person-shaped — a company-only row is invalid by construction. This step is the single route from companies to people. **Every source that ends up holding companies runs it** (`account_list` always; `discovery` Path B after sourcing companies; a company-only CSV redirected from `/csv-pipeline-fill`). Sources that produce people directly skip it, and YC is a deliberate exemption: it is founder-first by design — the founder *is* the buyer, so `/yc-pipeline-fill` keeps its own founder extraction. Never improvise around this step by hand-picking a buyer out of research prose — see the anti-skew rule below.
+
+**Contract:**
+- **Input:** a list of companies, each with `company_name` and/or `domain` (at least one), plus the campaign's ICP target titles/seniority and a resolved `buyers_per_account` (see Inputs).
+- **Output:** the canonical person-shaped candidate list defined in `RESEARCH-ENGINE.md`, ready for Step 3. Set `raw_signals.source_company` so the report can group by account.
+
+**Per company:**
+1. Pull up to `buyers_per_account` people matching the campaign's ICP titles/seniority, using the first available provider in this order (same order as discovery sourcing; apply `source_policy` before any call):
+   - **Structured B2B provider** — e.g. Clay `find-and-enrich-contacts-at-company` with the title/seniority filter.
+   - **LinkedIn / Sales Nav** people-at-known-company via `import_prospects action=sales_nav_search` — fine here because the company is fixed; the marquee-name skew applies to company discovery, not to enumerating a known committee. Mind LinkedIn quota.
+   - **Email finder** — Hunter via `search type=companies {domain, seniority}`.
+   - **Web** — `WebSearch` for "{company} {title}" + team/about pages; the universal fallback.
+2. **Select by title fit, not visibility.** When the provider returns more than `buyers_per_account` matches, rank by ICP title/seniority fit — never by follower count, press coverage, or how often the name appears in research prose. The buyer with no public profile is often the one actually running the function; picking the famous name per account is the same marquee-name skew this skill warns about for Sales Nav.
+3. **Companies that resolve to zero people** are reported by this step at hand-off ("no ICP-matching contacts found at {company} via {providers tried}") and counted in the engine's Step 8 report (`accounts unresolved`), never silently dropped. They cannot enter the engine (the candidate shape is person-shaped), so the hand-off summary is where the gap surfaces.
+
+Provider calls run in the standard bounded waves (company-level actions ≤10, person/LinkedIn actions ≤5) with progress objects per `contracts/run-progress.schema.json`, using `phase: "committee_resolution"`.
+
+## Account-list handler (for `account-list` source)
+
+Input is company names or domains — pasted lines, or a company-only CSV/xlsx redirected from `/csv-pipeline-fill`. This is a thin wrapper around the shared committee-resolution step:
+
+1. **Parse companies.** One company per line (or per row). A line that looks like a domain (`acme.com`) sets `domain`; otherwise it's `company_name`. Drop blanks and `#` comments; dedupe case-insensitively. Above 100 accounts, confirm: "{N} accounts — process all, or first M? (a/N)".
+2. **Anchor on campaign ICP.** Read the campaign's ICP (via `fetch` type=campaign and `fetch` type=settings subtype=profile) to get target titles/seniority. Show a one-line synthesis and the resolved `buyers_per_account` — full precedence per Inputs: an explicit operator value wins, else a campaign-description target like "~2 per account", else this source's default of 3 (the accounts are already qualified, go deeper) — and confirm before resolving.
+3. **Run committee resolution** (shared step above) across the account list.
+4. **Show the resolved list** grouped by account — `Company → Name (title) [source]` — and get a "go" / "drop X" before continuing to Step 3.
+
+The territory/fit gate on the *companies* themselves still happens in Phase A + the harness gate — the handler doesn't pre-judge accounts, it only turns them into people.
 
 ## Discovery-mode handler (for `discovery` source)
 
@@ -147,7 +192,7 @@ Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "direc
 
    Apply `source_policy` before inventorying or calling providers. Validate the entire object against `contracts/source-policy.schema.json` before the first provider call. If `selected_source` is disconnected, stop with code `source_unavailable`; exclusive mode never substitutes, while preferred mode may use only the first connected entry in `allowed_fallbacks`. Announce the resolved policy in one line ("Sourcing via Clay — firmographic pull + committee enrichment; web as allowed backup; Sales Nav prohibited") so the operator can redirect.
 3. **Source companies first, by firmographics — aim past the obvious names** — use the chosen tool to pull companies matching the merged ICP by stage / headcount / vertical / geo, NOT by marquee-name lookup (the saturated set IS the famous names). With a data provider, run the firmographic query directly; with web only, work funding announcements + directories.
-4. **Resolve the buying committee per company** — for each candidate company, pull ICP-matching titles via the same provider's contact enrichment (e.g. Clay `find-and-enrich-contacts-at-company`) or `search type=companies {domain, seniority}` (Hunter). Cap ~5 people/company to spread the surface.
+4. **Resolve the buying committee per company** — run the shared **Committee resolution** step above on the sourced companies, with `buyers_per_account` resolved per Inputs (discovery default 2 — the surface is unqualified, so spread it across more accounts rather than going deep on any one).
 5. **Dedup against existing pipeline** — for each discovered person, check `search` type=people with a name/company keyword query so you don't research someone the campaign already has. This is where saturated names drop out, cheaply, before any research spend.
 6. **Show the discovered list to the operator** before handoff. Format: `Name (title) — Company [source] [linkedin]`. Cap the surface at 2x daily_target so we don't over-source. Get a "go" / "drop X" before continuing.
 

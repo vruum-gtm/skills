@@ -47,6 +47,8 @@ If `name` is mapped, defer the first/last split to the engine doc's Step 7 (cano
 
 ### Step 4: Resolve ambiguous mappings
 
+**Company-only CSV → route to the `account_list` source.** If `company` maps but no person-identity column does (no `name`/first+last, no `linkedin_url`, no `email`), this is an account list, not a contact list. Don't ask the operator to force a mapping — hand the company column to `/pipeline-fill`'s `account-list` source, whose committee-resolution step resolves `buyers_per_account` ICP-matching buyers per company. Say so in one line: "No contact columns — treating this as an account list ({N} companies); /pipeline-fill will resolve the buying committee."
+
 If any required field can't be auto-mapped (`name`/(first+last) AND `company`, OR `linkedin_url`), show the operator the detected headers + sample row and ask which column maps to which field. Don't guess silently — silent guessing is the source of "why did my CSV import 50 prospects with the wrong company" bugs.
 
 For multi-column ambiguity (e.g. two columns matching `email`), pick the leftmost match and note it in the operator output.
@@ -113,6 +115,7 @@ Continue automatically? (y/n)
 - **Duplicate rows** — in-CSV dedup before handoff.
 - **LinkedIn URLs with tracking params** — query string stripped during canonicalization.
 - **Mixed name format** (some rows have full_name, others have first/last) — engine handles both via Step 7's identity-resolution flow.
+- **Company-only CSV** (no contact columns) — routed to `/pipeline-fill`'s `account-list` source at Step 4; never imported as contacts.
 - **Empty CSV** — orchestrator says "CSV has no data rows after dedup; nothing to research" and exits.
 
 ## Notes

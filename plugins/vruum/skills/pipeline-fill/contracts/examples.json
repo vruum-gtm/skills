@@ -32,6 +32,24 @@
       "person_wave_size": 5,
       "transient_retry_attempts": 2,
       "reason": "Use only Clay; stop if it is unavailable."
+    },
+    "account_list_committee_depth": {
+      "version": "1",
+      "selected_source": "clay",
+      "source_mode": "preferred",
+      "prohibited_sources": [
+        "sales_nav",
+        "linkedin"
+      ],
+      "allowed_fallbacks": [
+        "hunter",
+        "web"
+      ],
+      "company_wave_size": 10,
+      "person_wave_size": 5,
+      "transient_retry_attempts": 2,
+      "buyers_per_account": 3,
+      "reason": "Operator-supplied account list; resolve a 3-person buying committee per account without touching LinkedIn quota."
     }
   },
   "progress": {
@@ -51,6 +69,23 @@
       "code": null,
       "elapsed_seconds": 34,
       "eta_seconds": 0
+    },
+    "committee_wave": {
+      "version": "1",
+      "state": "running",
+      "phase": "committee_resolution",
+      "provider": "clay",
+      "wave": 1,
+      "wave_count": 3,
+      "completed": 5,
+      "total": 15,
+      "failed": 0,
+      "not_attempted": 10,
+      "safe_retry_items": [],
+      "ambiguous_items": [],
+      "code": null,
+      "elapsed_seconds": 21,
+      "eta_seconds": 42
     },
     "person_wave": {
       "version": "1",

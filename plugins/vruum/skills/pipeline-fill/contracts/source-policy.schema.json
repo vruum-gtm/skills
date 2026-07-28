@@ -72,6 +72,12 @@
       "maximum": 2,
       "default": 2
     },
+    "buyers_per_account": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Buying-committee members to resolve per company in the shared committee-resolution step. No schema-level default on purpose: the default is per-source (discovery 2, account_list 3) and resolved by the orchestrator; a campaign-description target overrides the per-source default, an explicit operator value overrides both."
+    },
     "reason": {
       "type": "string",
       "minLength": 1
@@ -79,6 +85,7 @@
   },
   "$defs": {
     "provider": {
+      "$comment": "account_list is deliberately absent: it is operator-supplied input, not a callable provider. Committee resolution for an account list runs through the providers listed here under this same policy.",
       "enum": [
         "clay",
         "sales_nav",

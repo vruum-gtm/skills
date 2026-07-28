@@ -30,6 +30,7 @@ All harness source skills produce candidate lists matching this shape exactly. T
 
 **Rules:**
 - At minimum, each candidate needs **either** `linkedin_url` **or** (`name`-fields + `company`). Candidates with neither are skipped at Step 3.
+- **A company-only row (name/domain but no person) is not a valid candidate.** Sources holding companies must run the shared **Committee resolution** step in `SKILL.md` (companies → people, capped at `buyers_per_account`) before handing off to this engine. Do not improvise buyer selection out of company-research prose — that reintroduces marquee-name skew and an undocumented depth of 1 per account.
 - `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
 - Field additions are additive only. Removing a field is a breaking change for source skills.
 - `source_policy`, candidate examples, and progress events have executable schemas under `contracts/`. Validate handoffs against them before provider calls.
@@ -145,7 +146,7 @@ Helps operators distinguish "still working" from "stuck."
 
 **Malformed LinkedIn fallback:** if the selected candidate already has a Vruum `person_id` and LinkedIn returns an invalid/malformed-profile result, preserve that `person_id` and retry the enrichment once through the first allowed structured provider in `source_policy` (Clay when selected/connected). Pass the same `person_id` in the PAYLOAD to `research(action="save_person", payload={person_id: ..., ...})` — update-only; never as the facade `id` argument. This is a provider fallback for one identity, not a new-person discovery. Never fall back on LinkedIn 429/rate-limit responses or timeouts; surface those for a later retry. If the fallback's email or LinkedIn URL belongs to another person, the backend returns `person_identity_conflict`; stop and surface it rather than dropping `person_id` and creating a duplicate.
 
-Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent file at `.claude/agents/vruum-prospect-deep-researcher.md`.
+Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent file at `.claude/agents/vruum-prospect-deep-researcher.md`. The fan-out is strictly 1:1 with the surviving candidate list — depth per account is decided upstream by `buyers_per_account` in the committee-resolution step, never by Phase B adding or trimming people per company.
 
 Dispatch prompt template:
 
@@ -349,6 +350,10 @@ Candidates flow:
   pre-flight   : {after dedup, after company-cache hit}
   phase A      : {company subagents fired} ({cached_skip} skipped via cache)
   phase B      : {prospect subagents fired} ({linkedin_unavailable} dismissed)
+
+For runs that went through committee resolution (account_list, discovery Path B), also report:
+  accounts unresolved : {N}  (list the companies + providers tried — from the committee-resolution hand-off)
+and group the per-prospect outcomes by `raw_signals.source_company` so the operator reads results per account.
 
 Harness pre-filter gate:
   pass         : {N}

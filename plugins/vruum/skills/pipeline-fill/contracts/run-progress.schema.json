@@ -34,6 +34,7 @@
     "phase": {
       "enum": [
         "company_research",
+        "committee_resolution",
         "person_research",
         "assignment"
       ]
