@@ -61,6 +61,9 @@ Stable operator-visible codes:
 | `company_resolution_failed` | company resolver returned no canonical row | retry once, then inspect resolver logs and evidence |
 | `company_research_save_failed` | company research persistence failed with unknown commit status | inspect stored rows before any replay |
 | `person_not_visible` | supplied person is outside the caller's tenant | use a tenant-visible person or omit `person_id` |
+| `person_not_found_for_update` | save_person anchors matched no one in your pipeline (update-only) | search and pass `payload.person_id`, or use save_discovered's `person` block for a new prospect |
+| `identity_unverifiable` | person has neither a LinkedIn URL nor an email | include `person.linkedin_url` or `person.email` |
+| `discovery_daily_cap` | rolling 24h discovery-save cap reached | resume tomorrow; do not retry this session |
 | `person_not_found` | tenant membership points to a missing person | refresh the candidate list |
 | `person_identity_conflict` | fallback identifier belongs to another person | remove the conflicting identifier and review the provider result |
 | `person_research_save_failed` | person research persistence failed with unknown commit status | inspect stored rows before any replay |
@@ -140,7 +143,7 @@ Helps operators distinguish "still working" from "stuck."
 
 **Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `research` action=linkedin_fetch and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
 
-**Malformed LinkedIn fallback:** if the selected candidate already has a Vruum `person_id` and LinkedIn returns an invalid/malformed-profile result, preserve that `person_id` and retry the enrichment once through the first allowed structured provider in `source_policy` (Clay when selected/connected). Pass the same `person_id` to `research(action="save_person")`. This is a provider fallback for one identity, not a new-person discovery. Never fall back on LinkedIn 429/rate-limit responses or timeouts; surface those for a later retry. If the fallback's email or LinkedIn URL belongs to another person, the backend returns `person_identity_conflict`; stop and surface it rather than dropping `person_id` and creating a duplicate.
+**Malformed LinkedIn fallback:** if the selected candidate already has a Vruum `person_id` and LinkedIn returns an invalid/malformed-profile result, preserve that `person_id` and retry the enrichment once through the first allowed structured provider in `source_policy` (Clay when selected/connected). Pass the same `person_id` in the PAYLOAD to `research(action="save_person", payload={person_id: ..., ...})` — update-only; never as the facade `id` argument. This is a provider fallback for one identity, not a new-person discovery. Never fall back on LinkedIn 429/rate-limit responses or timeouts; surface those for a later retry. If the fallback's email or LinkedIn URL belongs to another person, the backend returns `person_identity_conflict`; stop and surface it rather than dropping `person_id` and creating a duplicate.
 
 Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent file at `.claude/agents/vruum-prospect-deep-researcher.md`.
 
@@ -225,42 +228,29 @@ Per surviving prospect:
 ### a. Save company research (once per company)
 If the prospect's company isn't already cached and Phase A produced fresh research, call `research(action="save_company", payload={name: <Phase A COMPANY>, website: <Phase A DOMAIN or canonical URL>, funding_data, growth_metrics, current_priorities: <newline-joined descriptions + source URLs>})`. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string, so serialize the Phase A object list instead of passing the list through. Skip if `CACHE_HIT: true` for that company.
 
-### b. Identity resolution + person research (load-bearing — corrects Codex Finding #6)
+### b. Identity prep (names + company linkage for the atomic save)
 
-`research` action=save_person requires `first_name` + `last_name` in the payload, NOT `name`. `manage_person` action=save_discovered requires `person_id` from a prior save step. So Step 7 is a 2-step backend dance:
+**VRU-722 atomic flow:** `research` action=save_person is UPDATE-ONLY (refreshing
+research on someone already saved). New prospects are created by ONE
+`manage_person` action=save_discovered call carrying a `person` block — person,
+research, and pipeline membership land in a single transaction, so a crashed or
+rejected save persists nothing. There is no create-then-adopt dance anymore.
 
 1. **Split full_name** if `first_name`/`last_name` aren't already set:
    - Last-space heuristic: split on the last space. `Jane Smith` → first=`Jane`, last=`Smith`. `Jane van der Merwe` → first=`Jane`, last=`van der Merwe`.
    - **Override with Phase B canonical names** if the linkedin_fetch research call returned them. LinkedIn's `first_name`/`last_name` fields are authoritative; the heuristic is a fallback for candidates without `linkedin_url`.
 
-2. **Call `research` with action=save_person.** The backend now requires you to identify the company unambiguously — pick ONE of these two paths:
+2. **Prepare company linkage** — the `person` block must identify the company unambiguously, ONE of:
 
-   **Path A (preferred): pass `company_id`.** Run the save_company call (`research` action=save_company) first, capture the returned `company_id`, then pass it in the payload here.
+   **Path A (preferred): `company_id`.** Run the save_company call (`research` action=save_company) first, capture the returned `company_id`.
 
-   **Path B (when Path A isn't done yet): pass `company_name` + at least one anchor.** Required anchors are any of `company_domain`, `company_website`, or `company_linkedin_url`. The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url` (e.g. `https://linkedin.com/company/microsoft`). If you ran linkedin_fetch with `include_company: true` in the payload, the separate company response carries `website` and `industry`. Domain can be derived from website (e.g. `microsoft.com` from `https://microsoft.com`) or from the prospect's verified work email.
+   **Path B: `company_name` + at least one anchor** (`company_domain`, `company_website`, or `company_linkedin_url`). The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url`. If you ran linkedin_fetch with `include_company: true`, the company response carries `website` and `industry`. **Anchor-less name-only saves are rejected with HTTP 422.**
 
-   **Anchor-less name-only saves are rejected with HTTP 422.** This was hardened to stop orphan stub creation in the companies table — name-only saves were silently producing duplicate rows for common names like Microsoft.
+3. **Refreshing someone ALREADY saved** (e.g. operator pasted a Vruum person UUID, or a triage-time research refresh): call `research(action="save_person", payload={person_id: <uuid>, ...fresh research fields})` — update-in-place, `researched_at` moves, and the response's `updated_fields`/`skipped_fields` tell you exactly what landed (contact fields are backfill-only; corrections go through `manage_person` action=update_contact). NEVER pass the UUID as the facade `id` argument — save_person takes no `id` and will 422. If save_person returns 404 `person_not_found_for_update`, the person isn't saved yet — use the step-c atomic save instead.
 
-   Example call:
-   ```
-   research(
-     action="save_person",
-     payload={
-       first_name=..., last_name=...,
-       email=..., linkedin_url=...,
-       # ONE of:
-       company_id=<from the save_company call>
-       # OR:
-       company_name=..., company_linkedin_url=...,  # at least one anchor
-       # ...rest of research fields
-     }
-   )
-   ```
+   **Old-backend fallback (rollout window only):** if `save_discovered` answers with a bare `person_id: field required` 422, the backend predates this flow — fall back to the old two-step dance (save_person to create, then save_discovered with the returned person_id) until the promote lands.
 
-   - If the prospect already had `person_id` set on the candidate (e.g. operator pasted a Vruum person UUID), pass it explicitly in the payload: `research(action="save_person", payload={person_id: ..., ...})` — backend updates rather than creating a new record.
-   - The response includes the `person_id`. Capture it for step c.
-
-### c. Save discovered person (authoritative harness score, backend-enforced gate)
+### c. Save discovered person — ONE atomic call (authoritative harness score)
 
 Build the authoritative `assessment` from the campaign playbook plus Phase A/B evidence. Score mechanically so reruns agree:
 
@@ -301,15 +291,37 @@ The score is the sum (0–100); 70+ passes. Send this exact shape:
 
 `match_summary` must be non-empty. Alignment items require `point` and `evidence`; concern items require `concern` and `evidence`. Confidence values are 0–1 and concern severity is exactly `blocker`, `warning`, or `minor`.
 
-Then call `manage_person(action="save_discovered", payload={person_id: <from b>, assessment: <object above>, ...})`:
+Then call `manage_person(action="save_discovered", ...)` with ONE of two payload shapes (pass exactly one of `person` / `person_id`):
+
+**NEW prospect (the normal Step 7 case):**
+```
+manage_person(
+  action="save_discovered",
+  payload={
+    person={
+      first_name=..., last_name=...,
+      email=..., linkedin_url=...,
+      # company linkage from step b (ONE of):
+      company_id=<from save_company>   # OR company_name + an anchor
+      # ...rest of research fields (headline, seniority_level,
+      # topics_of_interest, recent_posts, role_start_date, ...)
+    },
+    assessment=<object above>,          # REQUIRED with person
+    campaign_id=... or assessment_campaign_id=...  # a campaign ref is REQUIRED
+  }
+)
+```
+
+**Person already saved:** `payload={person_id: <uuid>, assessment: <object above>, ...}` — applies the score update-in-place (THE path to score an existing stub).
 
 - `mode == save`: add `assessment_campaign_id: <campaign>` so the score is recorded against the campaign ICP, and omit `campaign_id` so no assignment or move occurs. New rows remain unassigned; duplicates keep their existing campaign assignment.
 - `mode == save-and-enroll`: add `campaign_id: <campaign>`; the backend uses it for both assessment provenance and assignment. Omit `assessment_campaign_id` unless it is the same campaign.
 
 This:
+- Creates person + research + pipeline membership in ONE transaction (person shape) — a failed or rejected save persists nothing, so there is no orphan window
 - Records the harness assessment as authoritative and skips the backend LLM scorer
-- Returns `match_score` (0–100) and `quality_gate_pass` (bool, true iff `match_score >= 70`)
-- Writes the tenant's `company_people` row; campaign assignment happens only when the payload includes `campaign_id`
+- Dedupes on canonical anchors: if the person block's email/linkedin match someone already saved (any URL variant — www, trailing slash, encoding), the call continues as a duplicate update instead of creating
+- Returns `person_id` (capture it for step d), `match_score` (0–100), `quality_gate_pass` (bool, true iff `match_score >= 70`), and `warnings[]` naming any failed best-effort side effects
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
