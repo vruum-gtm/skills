@@ -60,7 +60,12 @@ Stable operator-visible codes:
 | `linkedin_auth_required` | LinkedIn account is disconnected/expired | reconnect LinkedIn |
 | `company_identity_conflict` | exact evidence points to different companies | correct the evidence; never auto-merge |
 | `company_resolution_failed` | company resolver returned no canonical row | retry once, then inspect resolver logs and evidence |
-| `company_research_save_failed` | company research persistence failed with unknown commit status | inspect stored rows before any replay |
+| `company_research_commit_unknown` | company research persistence response was lost | replay only the identical payload with the same idempotency key |
+| `company_research_serialization_conflict` | bounded transaction retries were exhausted | replay only the identical payload with the same idempotency key |
+| `idempotency_key_reused` | a save key was reused with different content | keep the original payload or generate a new key |
+| `company_research_invalid_value` | a company anchor or research value is malformed | correct the named value before retrying |
+| `company_research_source_invalid` | a shared field lacks admissible evidence | add/correct sources_by_field before retrying |
+| `company_research_save_failed` | save failed outside the atomic receipt boundary | inspect the correlation ID before deciding whether to retry |
 | `person_not_visible` | supplied person is outside the caller's tenant | use a tenant-visible person or omit `person_id` |
 | `person_not_found_for_update` | save_person anchors matched no one in your pipeline (update-only) | search and pass `payload.person_id`, or use save_discovered's `person` block for a new prospect |
 | `identity_unverifiable` | person has neither a LinkedIn URL nor an email | include `person.linkedin_url` or `person.email` |
@@ -98,9 +103,11 @@ Per campaign's candidate list:
 
 1. **MCP precheck + ICP load** (above) — abort run on failure.
 2. **Batch dedup against existing pipeline.** Call `search(type="people", query=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
-3. **Batch company-cache check.** Collect unique company domains from surviving candidates. Call `fetch(type="company_research", id=[the domains])`. Returns `[{domain, cached_research, age_days}]`.
-   - Cache hit (`cached_research != null` AND `age_days <= 90`) → company skips Phase A; the cached research carries forward.
-   - Cache miss or stale (`age_days > 90`) → company joins the Phase A research queue.
+3. **Batch company fixed-field reuse check.** Collect unique company domains from surviving candidates. Call `fetch(type="company_research", id=[the domains], filters={"requested_fields":["company_summary","company_stage","current_priorities","funding_data","growth_metrics"]})`.
+   - Reuse only values whose field entry has `status="reusable"`.
+   - `core_reuse.reusable` means the shared summary core is reusable; it never means the campaign brief is complete.
+   - Missing, unsourced, stale, invalid, and absent fields remain null inputs. Never carry a raw stored value forward.
+   - **Every company still runs Phase A** for campaign-relative outbound motion, ACV class, sales-cycle inference, and triggers. Reusable fixed values are inputs that avoid redundant fetching, not a Phase A skip signal.
 4. **Operator confirmation gate (CSV / large lists only).** If the original candidate list was >200 (CSV) or >100 (manual list), confirm count to process before continuing.
 
 **Latency:** ~2s for batch dedup + ~1s for batch company cache, regardless of list size. (Per-prospect iteration was ~12s for 60 prospects pre-batch primitives.)
@@ -111,7 +118,7 @@ Per campaign's candidate list:
 
 **Concurrency cap: 10 parallel.** Phase A subagents don't call `research` with action=linkedin_fetch — they hit `fetch` (type=company_research), `research` (action=enrich_company), `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
 
-Dispatch one `vruum-company-deep-researcher` per unique uncached company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools.
+Dispatch one `vruum-company-deep-researcher` per unique company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools. Include the reusable fixed-field values and their evidence in the prompt; the researcher must still compute campaign-relative outputs.
 
 Dispatch prompt template (fill in placeholders):
 
@@ -126,7 +133,7 @@ acv_floor: {dollars or default $10K}
 Run your workflow (a–i) and return the structured output block.
 ```
 
-Each subagent returns: `company_name`, `domain`, `funding_data`, `growth_metrics`, `current_priorities`, `outbound_motion_score` (0/1/2), `acv_class` (smb/mid/ent), `sales_cycle_inference` (short/medium/long), `triggers[]`, `STATUS: ok | failed`, `CACHE_HIT`. Subagents never persist; the orchestrator resolves `company_id` in Step 7 when the requested mode permits writes.
+Each subagent returns: `company_name`, `domain`, `company_summary`, `company_stage`, `funding_data`, `growth_metrics`, `current_priorities`, `sources_by_field` (`{field:[{url,title?,observed_at}]}`), `outbound_motion_score` (0/1/2), `acv_class` (smb/mid/ent), `sales_cycle_inference` (short/medium/long), `triggers[]`, `STATUS: ok | failed`, and the list of reused fixed fields. Subagents never persist; the orchestrator resolves `company_id` in Step 7 when the requested mode permits writes.
 
 **Wait for the wave to complete before Phase B.** Phase B inputs depend on Phase A's signals (or null if failed).
 
@@ -227,7 +234,7 @@ Apply the requested mode before any persistence:
 Per surviving prospect:
 
 ### a. Save company research (once per company)
-If the prospect's company isn't already cached and Phase A produced fresh research, call `research(action="save_company", payload={name: <Phase A COMPANY>, website: <Phase A DOMAIN or canonical URL>, funding_data, growth_metrics, current_priorities: <newline-joined descriptions + source URLs>})`. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string, so serialize the Phase A object list instead of passing the list through. Skip if `CACHE_HIT: true` for that company.
+When Phase A produced any newly researched fixed fields, call `research(action="save_company", payload={idempotency_key: <stable run/company save key>, name: <Phase A COMPANY>, website: <Phase A DOMAIN or canonical URL>, company_summary, company_stage, funding_data, growth_metrics, current_priorities: <newline-joined descriptions>, sources_by_field})`. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string. Omit reusable fields that were not revalidated so the atomic patch preserves them. Explicit null deliberately clears a field, so do not send null merely because Phase A did not research it. `sources_by_field` keys must equal exactly the supplied non-null research fields. Preserve the identical idempotency key and payload for unknown-commit replay; every bulk item needs its own key.
 
 ### b. Identity prep (names + company linkage for the atomic save)
 
@@ -348,7 +355,7 @@ Pipeline fill complete: {campaign_name} (source: {source}, mode: {harness|platfo
 Candidates flow:
   source       : {N from source skill output}
   pre-flight   : {after dedup, after company-cache hit}
-  phase A      : {company subagents fired} ({cached_skip} skipped via cache)
+  phase A      : {company subagents fired} (0 skipped via cache; fixed fields reused: {count})
   phase B      : {prospect subagents fired} ({linkedin_unavailable} dismissed)
 
 For runs that went through committee resolution (account_list, discovery Path B), also report:
