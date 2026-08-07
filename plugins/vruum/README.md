@@ -4,7 +4,11 @@ Vruum AI skills for Claude Code, Codex CLI, and any AI assistant with a skill di
 
 Once installed, run `/vruum-guide` in your harness — it takes you from an empty account to your first reviewed outreach draft, then keeps recommending the next most valuable action.
 
-Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `skill` tool (action=invoke to run a skill, action=publish to publish one), with `search` type=skills and `fetch` type=skill for discovery, so any connected client can run these skills. Skills themselves are distributed via the Claude Code plugin / marketplace; this npm package installs them into the agent-standard skills directory for harnesses without plugin support (Codex CLI, ChatGPT, Windsurf).
+Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `skill` tool (action=invoke to run a skill, action=publish to publish one), with `search` type=skills and `fetch` type=skill for discovery, so any connected client can run these skills. This package installs Vruum-shipped skills into the standard skill directories used by Claude Code, Codex CLI, and other compatible harnesses.
+
+You do not need `@vruum/cli` to use Vruum. Connect the Vruum MCP and install
+this skills package; the CLI is optional for local files, scripting, CI, auth
+debugging, and the convenience `vruum init` command.
 
 ## Install
 
@@ -20,7 +24,15 @@ Add to `~/.claude.json`:
 }
 ```
 
-Install the skills via the Claude Code plugin / marketplace (below); the MCP server provides the `skill` tool (action=invoke). You don't need this npm package for Claude Code.
+Install through the Claude Code plugin / marketplace when available. Otherwise
+install the skills directly:
+
+```sh
+npx --yes @vruum/skills@latest install
+```
+
+Restart Claude Code afterward. On Windows, the installer uses directory
+junctions and does not require Administrator access or Developer Mode.
 
 ### Codex CLI
 
@@ -41,8 +53,8 @@ url = "https://api.vruum.ai/mcp"
 ```
 
 ```bash
-npx @vruum/skills install                                # detects ~/.agents/skills/
-npx @vruum/skills install --target /path/to/skills/dir   # any other harness
+npx --yes @vruum/skills@latest install                                # detects ~/.agents/skills/
+npx --yes @vruum/skills@latest install --target /path/to/skills/dir   # any other harness
 ```
 
 ### Cursor / VS Code Copilot / Cline
@@ -60,7 +72,7 @@ Download and upload via **Settings → Customize → Plugins → "+"**.
 ### ChatGPT / Windsurf / other harnesses without plugin support
 
 ```bash
-npx @vruum/skills install --target /path/to/skills/dir
+npx --yes @vruum/skills@latest install --target /path/to/skills/dir
 ```
 
 ## Coexisting with operator skills
@@ -99,16 +111,16 @@ the public skill instead of leaving a broken link.
 Skills auto-prompt to upgrade via the preamble. To upgrade explicitly:
 
 ```bash
-npx @vruum/skills install
+npx --yes @vruum/skills@latest install
 ```
 
 ## Uninstall
 
 ```bash
-npx @vruum/skills uninstall
+npx --yes @vruum/skills@latest uninstall
 ```
 
-Removes all symlinks this installer created. Does not touch `~/.vruum/auth.json` or other co-resident tool state.
+Removes all links or Windows junctions this installer created. Does not touch `~/.vruum/auth.json` or other co-resident tool state.
 
 ## Links
 
