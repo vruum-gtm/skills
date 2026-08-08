@@ -34,11 +34,16 @@ This is the cheap pre-filter — it removes obvious mismatches (titled-wrong, in
 Take the APPROVED profiles from Step 2 and convert them to the canonical candidate-list shape. From each profile, capture:
 - `full_name` (from profile name)
 - `company` (from profile current company)
+- `company_id` (when the preview already includes the canonical Vruum company UUID; otherwise null)
+- `company_domain` / `company_website` (when present in preview company metadata)
+- `company_linkedin_url` (from the current employer/company result, not the person's `/in/` URL)
 - `linkedin_url` (canonicalize via the LinkedIn URL in the profile)
 - `title` (current title — useful for downstream classification but Phase B re-fetches authoritatively)
 - `email`: null (Phase B finds it)
 - `person_id`: null (resolved in Step 7 of engine flow)
 - `raw_signals`: `{source: "sales-nav-deep", search_id: ..., preview_metadata: {...}}`
+
+Preserve all available employer anchors even though Phase B re-fetches the profile. A name-only `company` is research context, not sufficient save identity; if neither the preview nor Phase B yields a strong current-employer anchor, the engine reports `company_unresolved` and does not save or enroll that prospect.
 
 ### Step 4: Hand off to /pipeline-fill (canonical handoff prompt)
 

@@ -19,6 +19,10 @@ All harness source skills produce candidate lists matching this shape exactly. T
     first_name: string | null,       // optional if full_name set; one of these MUST be present
     last_name: string | null,         // optional if full_name set
     company: string | null,           // "Acme Co" — null OK if linkedin_url is set
+    company_id: string | null,        // canonical Vruum company UUID when already known
+    company_domain: string | null,    // apex only, e.g. "acme.com"
+    company_website: string | null,   // canonical http(s) company URL
+    company_linkedin_url: string | null, // canonical /company/ or /school/ URL
     linkedin_url: string | null,      // canonical /in/ URL — null OK if name+company set
     email: string | null,             // null = pending lookup; engine doesn't gate on email presence
     person_id: string | null,         // pre-existing Vruum person UUID; null for new (resolved in Step 7)
@@ -30,6 +34,8 @@ All harness source skills produce candidate lists matching this shape exactly. T
 
 **Rules:**
 - At minimum, each candidate needs **either** `linkedin_url` **or** (`name`-fields + `company`). Candidates with neither are skipped at Step 3.
+- Company anchors are additive during sourcing/research: preserve every trustworthy `company_id`, `company_domain`, `company_website`, and `company_linkedin_url` through the handoff. A company name is useful research input but is **not** a strong identity anchor.
+- A candidate may enter research without a strong company anchor because Phase B can recover one from the current LinkedIn work-experience record. It may **not** enter a save call without one; Step 7's company-binding invariant is absolute.
 - **A company-only row (name/domain but no person) is not a valid candidate.** Sources holding companies must run the shared **Committee resolution** step in `SKILL.md` (companies → people, capped at `buyers_per_account`) before handing off to this engine. Do not improvise buyer selection out of company-research prose — that reintroduces marquee-name skew and an undocumented depth of 1 per account.
 - `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
 - Field additions are additive only. Removing a field is a breaking change for source skills.
@@ -103,7 +109,7 @@ Per campaign's candidate list:
 
 1. **MCP precheck + ICP load** (above) — abort run on failure.
 2. **Batch dedup against existing pipeline.** Call `search(type="people", query=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
-3. **Batch company fixed-field reuse check.** Collect unique company domains from surviving candidates. Call `fetch(type="company_research", id=[the domains], filters={"requested_fields":["company_summary","company_stage","current_priorities","funding_data","growth_metrics"]})`.
+3. **Batch company fixed-field reuse check.** Collect unique company domains from surviving candidates, deriving the apex from `company_website` when necessary. Call `fetch(type="company_research", id=[the domains], filters={"requested_fields":["company_summary","company_stage","current_priorities","funding_data","growth_metrics"]})`.
    - Reuse only values whose field entry has `status="reusable"`.
    - `core_reuse.reusable` means the shared summary core is reusable; it never means the campaign brief is complete.
    - Missing, unsourced, stale, invalid, and absent fields remain null inputs. Never carry a raw stored value forward.
@@ -127,6 +133,8 @@ You are vruum-company-deep-researcher. Research this company against campaign "{
 
 company_name: {name}
 domain: {domain}
+website: {company_website or null}
+company_linkedin_url: {company_linkedin_url or null}
 campaign_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars or default $10K}
 
@@ -164,6 +172,10 @@ full_name: {name}
 first_name: {first_name or null}
 last_name: {last_name or null}
 company: {company}
+company_id: {company_id or null}
+company_domain: {company_domain or null}
+company_website: {company_website or null}
+company_linkedin_url: {company_linkedin_url or null}
 linkedin_url: {url or null}
 email: {email or null}
 
@@ -179,6 +191,8 @@ Run your workflow (a–k) and return the structured output block. Note: do NOT c
 ```
 
 Each subagent returns: `first_name`, `last_name`, `email`, `linkedin_url`, `title`, `company_name`, `company_domain`, `company_website`, `company_linkedin_url`, `topics_of_interest`, `recent_posts`, `opening_hooks[]` (2–3, with source URLs), `decision_maker_level` (junior/mid/senior), `email_status` (found/pending), `role_start_date`, per-prospect `triggers[]`, `STATUS`. Every `recent_posts` item uses the backend shape `{text, posted_at?, share_url?, reaction_count?, comment_count?}`; never send the retired `content`, `url`, `excerpt`, or `date` keys. Note: `person_id` is NOT returned here — identity resolution happens in Step 7.
+
+The Phase B result describes the prospect's **current** employer, not merely the company the source guessed. When LinkedIn shows a different current employer, replace the candidate's stale company fields with that current work-experience entry and its anchors before Step 7. If Phase B cannot produce either a `company_id` or `company_name` plus a valid anchor, return `STATUS: company_unresolved`; the orchestrator reports and skips that prospect instead of creating a company-less person.
 
 **Inter-wave progress line:**
 ```
@@ -215,15 +229,18 @@ Per surviving prospect, evaluate four criteria using the campaign's playbook ICP
 - `harness_gate_status: warming` — failed criterion 2 (no outbound motion)
 - `harness_gate_status: low_priority` — failed criterion 4 (no recent trigger)
 - `harness_gate_status: gate_inconclusive` — Phase A failed for this prospect's company (degraded mode)
+- `harness_gate_status: company_unresolved` — Phase B could not verify a current employer with a canonical company anchor; skip pipeline persistence and enrollment
 - `harness_gate_status: dismiss` — failed criterion 1 (acv) or 3 (junior, no senior swap available); skip backend call entirely
 
-For non-dismiss outcomes, also set `dismiss_reason` to null and `flag` to the relevant reason (warming|low_priority|gate_inconclusive|null).
+For non-dismiss outcomes, also set `dismiss_reason` to null and `flag` to the relevant reason (warming|low_priority|gate_inconclusive|company_unresolved|null).
 
 **The gate is declarative prose — not a hardcoded function.** The orchestrator follows the rules above and tags each candidate. If a future criterion changes, edit this section.
 
 ---
 
-## Step 7 — Save chain (everyone except harness-gate dismisses)
+## Step 7 — Save chain (eligible outcomes only; dismiss and company_unresolved skip)
+
+**Company-binding invariant (load-bearing):** every prospect that reaches pipeline persistence must have a verified current employer expressed as either `company_id` or `company_name` plus at least one strong anchor (`company_domain`, `company_website`, `company_linkedin_url`). A company name alone never qualifies. If the invariant cannot be satisfied after Phase B, mark the item `company_unresolved`, do not call `save_company` with a name-only identity, `save_discovered`, or `manage_outreach` for it, and surface it in Step 8. `save_person` may still refresh an already-saved person without changing their company, but that refresh does not make the item eligible to save or enroll. This is stricter than the candidate admission rule on purpose: research may resolve missing identity, pipeline persistence may not guess it.
 
 Apply the requested mode before any persistence:
 
@@ -233,8 +250,8 @@ Apply the requested mode before any persistence:
 
 Per surviving prospect:
 
-### a. Save company research (once per company)
-When Phase A produced any newly researched fixed fields, call `research(action="save_company", payload={idempotency_key: <stable run/company save key>, name: <Phase A COMPANY>, website: <Phase A DOMAIN or canonical URL>, person_id: <the person's Vruum UUID, when researching an EXISTING person's employer>, company_summary, company_stage, funding_data, growth_metrics, current_priorities: <newline-joined descriptions>, sources_by_field})`. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string. Omit reusable fields that were not revalidated so the atomic patch preserves them. Explicit null deliberately clears a field, so do not send null merely because Phase A did not research it. `sources_by_field` keys must equal exactly the supplied non-null research fields. Preserve the identical idempotency key and payload for unknown-commit replay; every bulk item needs its own key.
+### a. Resolve and save the company (once per unique current employer)
+In `save` and `save-and-enroll` modes, reuse a trustworthy candidate `company_id` when one is already known. Otherwise call `research(action="save_company", payload={idempotency_key: <stable run/company save key>, name: <CURRENT COMPANY>, website: <canonical website or domain>, linkedin_url: <canonical LinkedIn company URL>, person_id: <the person's Vruum UUID, when researching an EXISTING person's employer>, company_summary, company_stage, funding_data, growth_metrics, current_priorities: <newline-joined descriptions>, sources_by_field})` once per unique current employer and capture the returned `company_id`. This call is required for identity resolution even when Phase A produced no new fixed research fields; in that case omit those research fields and their evidence, but still send the strongest known company anchor. The API field is `name`, not `company_name`; it accepts `website`, not `domain`; and `current_priorities` is one string. Omit reusable fields that were not revalidated so the atomic patch preserves them. Explicit null deliberately clears a field, so do not send null merely because Phase A did not research it. `sources_by_field` keys must equal exactly the supplied non-null research fields. Preserve the identical idempotency key and payload for unknown-commit replay; every bulk item needs its own key. Reuse the returned `company_id` for every prospect at that employer.
 
 **Person linkage check (VRU-767):** when the research is about a saved person's employer (triage/authoring-time refresh), ALWAYS pass their UUID as `payload.person_id` and read the response's `person_link`. `matched`/`linked`/`repointed` mean the person's future touches will see this research. `mismatch` means no pin was written because the evidence disagreed — the pin sits on a DIFFERENT company (anchored, or a stub whose name carries more identity than the researched one), or an unpinned person's known positions show no role at the researched company. People can hold multiple positions and researching a secondary employer never switches the primary pin. This research will NOT surface on their touches — verify which company they actually work for before authoring from it. `conflict` is a transient race (the pin changed mid-save): replay the identical payload with the same idempotency key once — `person_id` is exempt from the idempotency hash, so adding it to a replay of an earlier save is also the supported repair path. Never assume a bare `success` means the research reached the person.
 
@@ -250,15 +267,15 @@ rejected save persists nothing. There is no create-then-adopt dance anymore.
    - Last-space heuristic: split on the last space. `Jane Smith` → first=`Jane`, last=`Smith`. `Jane van der Merwe` → first=`Jane`, last=`van der Merwe`.
    - **Override with Phase B canonical names** if the linkedin_fetch research call returned them. LinkedIn's `first_name`/`last_name` fields are authoritative; the heuristic is a fallback for candidates without `linkedin_url`.
 
-2. **Prepare company linkage** — the `person` block must identify the company unambiguously, ONE of:
+2. **Prepare company linkage** — every save must identify the company unambiguously, ONE of:
 
    **Path A (preferred): `company_id`.** Run the save_company call (`research` action=save_company) first, capture the returned `company_id`.
 
-   **Path B: `company_name` + at least one anchor** (`company_domain`, `company_website`, or `company_linkedin_url`). The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url`. If you ran linkedin_fetch with `include_company: true`, the company response carries `website` and `industry`. **Anchor-less name-only saves are rejected with HTTP 422.**
+   **Path B: `company_name` + at least one anchor** (`company_domain`, `company_website`, or `company_linkedin_url`). The data is in the LinkedIn payload you already fetched. The prospect's CURRENT employer is the entry in `work_experience[]` with `end_date: null` — that entry has `company_linkedin_url`. If you ran linkedin_fetch with `include_company: true`, the company response carries `website` and `industry`. **Anchor-less name-only saves are forbidden even if a stale backend would accept them.**
+
+   For a **new** prospect, place the linkage inside `person`. For an **existing** `person_id`, send the same linkage at the top level of `save_discovered` (`company_id`, or `company_name` plus anchors). Never assume an existing person's prior membership is already bound.
 
 3. **Refreshing someone ALREADY saved** (e.g. operator pasted a Vruum person UUID, or a triage-time research refresh): call `research(action="save_person", payload={person_id: <uuid>, ...fresh research fields})` — update-in-place, `researched_at` moves, and the response's `updated_fields`/`skipped_fields` tell you exactly what landed (contact fields are backfill-only; corrections go through `manage_person` action=update_contact). NEVER pass the UUID as the facade `id` argument — save_person takes no `id` and will 422. If save_person returns 404 `person_not_found_for_update`, the person isn't saved yet — use the step-c atomic save instead.
-
-   **Old-backend fallback (rollout window only):** if `save_discovered` answers with a bare `person_id: field required` 422, the backend predates this flow — fall back to the old two-step dance (save_person to create, then save_discovered with the returned person_id) until the promote lands.
 
 ### c. Save discovered person — ONE atomic call (authoritative harness score)
 
@@ -322,7 +339,7 @@ manage_person(
 )
 ```
 
-**Person already saved:** `payload={person_id: <uuid>, assessment: <object above>, ...}` — applies the score update-in-place (THE path to score an existing stub).
+**Person already saved:** `payload={person_id: <uuid>, company_id: <resolved company UUID>, assessment: <object above>, ...}` — applies the score update-in-place and atomically binds/promotes the current employer. If no `company_id` was resolved, pass `company_name` plus at least one top-level anchor instead. Never send a bare `person_id` from this harness.
 
 - `mode == save`: add `assessment_campaign_id: <campaign>` so the score is recorded against the campaign ICP, and omit `campaign_id` so no assignment or move occurs. New rows remain unassigned; duplicates keep their existing campaign assignment.
 - `mode == save-and-enroll`: add `campaign_id: <campaign>`; the backend uses it for both assessment provenance and assignment. Omit `assessment_campaign_id` unless it is the same campaign.
@@ -331,7 +348,7 @@ This:
 - Creates person + research + pipeline membership in ONE transaction (person shape) — a failed or rejected save persists nothing, so there is no orphan window
 - Records the harness assessment as authoritative and skips the backend LLM scorer
 - Dedupes on canonical anchors: if the person block's email/linkedin match someone already saved (any URL variant — www, trailing slash, encoding), the call continues as a duplicate update instead of creating
-- Returns `person_id` (capture it for step d), `match_score` (0–100), `quality_gate_pass` (bool, true iff `match_score >= 70`), and `warnings[]` naming any failed best-effort side effects
+- Returns `person_id` (capture it for step d), `company_id`, `company_bound`, `match_score` (0–100), `quality_gate_pass` (bool, true iff `match_score >= 70`), and `warnings[]` naming any failed best-effort side effects. Require `company_bound == true` before adding the person to Step 7d's enrollment list; a false value is `company_binding_failed`, must be surfaced, and must never be described as a successful save-and-enroll outcome.
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
@@ -339,7 +356,7 @@ This:
 
 ### d. Bulk enrollment (only after all prospects saved)
 
-Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={campaign_id: ...})` ONCE at the end of Step 7.
+Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND backend `company_bound == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={campaign_id: ...})` ONCE at the end of Step 7.
 
 - Per-prospect outcomes are returned (enrolled | skipped | failed). Surface per-prospect failures in the report.
 - If `harness_gate_status` is `warming` or `low_priority`, exclude from the bulk enroll list. Operator decides on review.
@@ -370,13 +387,15 @@ Harness pre-filter gate:
   low_priority : {N}
   gate_inconclusive : {N}
   dismiss      : {N}  (top reasons: acv_too_low={N}, decision_maker_junior={N})
+  company_unresolved : {N}  (not saved — list the people and missing anchors)
 
 Backend-enforced gate using the authoritative harness score (match_score >= 70):
   passed       : {N}
   failed       : {N}  (saved with research; operator can review via /enrich-prospect)
   request_failed : {N}  (retry candidates — surface in next run)
+  company_binding_failed : {N}  (saved response was not company-bound; never enrolled)
 
-Enrolled (both gates pass + auto-enroll mode): {N}
+Enrolled (harness gate + backend score gate + company binding pass, in auto-enroll mode): {N}
 Saved but not enrolled: {N}
 
 Triggers detected (top 5):
@@ -398,7 +417,7 @@ For multi-campaign runs, group the report by campaign and include a totals summa
 - **Source returns empty after dedup** — orchestrator says "All {N} candidates already in pipeline, nothing to research" and exits cleanly.
 - **Mid-flight cancellation** (operator Ctrl+C before Step 7) — no new Phase A/B research has been persisted. Re-running `/pipeline-fill` reuses pre-existing fresh cache entries but repeats unfinished research waves. Note this honestly in the cancellation message.
 - **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness marks `gate_inconclusive` → Step 7 score is capped below the backend threshold. See Step 4.
-- **Categorical/numeric divergence** — a categorical `pass` can still score below 70 when evidence strength is weak. Enrollment requires both `harness_gate_status == pass` and backend `quality_gate_pass == true`; surface both states.
+- **Categorical/numeric divergence** — a categorical `pass` can still score below 70 when evidence strength is weak. Enrollment requires all three confirmations: `harness_gate_status == pass`, backend `quality_gate_pass == true`, and backend `company_bound == true`; surface all three states.
 - **Cached company research >90 days old** — Phase A re-runs the company subagent. Don't trust stale signals for an active fill.
 - **Manual-list cap** — if >100 lines pasted, orchestrator asks "{N} prospects pasted — process all, or first M? (a/N)".
 - **CSV >200 rows** — same prompt at Step 5 of csv-pipeline-fill.

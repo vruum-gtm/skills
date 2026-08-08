@@ -140,8 +140,8 @@ Per source pick, dispatch:
 The canonical candidate shape in `RESEARCH-ENGINE.md` is person-shaped — a company-only row is invalid by construction. This step is the single route from companies to people. **Every source that ends up holding companies runs it** (`account_list` always; `discovery` Path B after sourcing companies; a company-only CSV redirected from `/csv-pipeline-fill`). Sources that produce people directly skip it, and YC is a deliberate exemption: it is founder-first by design — the founder *is* the buyer, so `/yc-pipeline-fill` keeps its own founder extraction. Never improvise around this step by hand-picking a buyer out of research prose — see the anti-skew rule below.
 
 **Contract:**
-- **Input:** a list of companies, each with `company_name` and/or `domain` (at least one), plus the campaign's ICP target titles/seniority and a resolved `buyers_per_account` (see Inputs).
-- **Output:** the canonical person-shaped candidate list defined in `RESEARCH-ENGINE.md`, ready for Step 3. Set `raw_signals.source_company` so the report can group by account.
+- **Input:** a list of companies, each with `company_name` and/or `domain` (at least one), plus any known `company_id`, `company_website`, or `company_linkedin_url`, the campaign's ICP target titles/seniority, and a resolved `buyers_per_account` (see Inputs).
+- **Output:** the canonical person-shaped candidate list defined in `RESEARCH-ENGINE.md`, ready for Step 3. Copy every trustworthy company anchor onto every resolved person (`company_id`, `company_domain`, `company_website`, `company_linkedin_url`) and set `raw_signals.source_company` so the report can group by account. Do not reduce a strongly identified account back to a name-only company during committee resolution.
 
 **Per company:**
 1. Pull up to `buyers_per_account` people matching the campaign's ICP titles/seniority, using the first available provider in this order (same order as discovery sourcing; apply `source_policy` before any call):
@@ -200,7 +200,7 @@ Emit progress objects matching `contracts/run-progress.schema.json` after every 
 
 Defaults when `source_policy` is omitted: `selected_source: null` (inventory connected discovery tools), `source_mode: "preferred"`, `prohibited_sources: []`, `allowed_fallbacks: ["web"]`, `company_wave_size: 10`, `person_wave_size: 5`, and `transient_retry_attempts: 2`. Operator language such as "no Sales Nav" or "no CSV" is parsed into `prohibited_sources` before validation and overrides defaults.
 
-Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way.
+Discovery-path candidates produced in either path use the canonical shape in `RESEARCH-ENGINE.md` and feed into Step 3 the same way. Preserve any company anchors returned by the selected provider. Name-only discoveries may proceed to Phase B, but the engine will not save them unless current-employer research supplies a strong anchor.
 
 **Path detection:** if the first non-comment line looks like a URL or has commas (paste-shaped), use Path A. If it's prose without URLs/commas and >40 chars, use Path B. If ambiguous, ask: "paste, or describe the ICP and I discover?"
 

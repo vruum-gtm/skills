@@ -115,6 +115,10 @@ Convert each surviving company into a candidate matching the canonical shape (de
   first_name: null,  // engine resolves in Step 7
   last_name: null,
   company: <yc company name>,
+  company_id: null,
+  company_domain: <apex derived from YC website or null>,
+  company_website: <canonical YC website URL or null>,
+  company_linkedin_url: null, // Phase B may fill from founder's current role
   linkedin_url: <founder linkedin_url, canonicalized>,
   email: null,        // Phase B finds it
   person_id: null,    // engine resolves in Step 7
@@ -132,7 +136,7 @@ Convert each surviving company into a candidate matching the canonical shape (de
 }
 ```
 
-The `yc_news` entries are pre-loaded triggers — Phase A's company subagent uses them in lieu of an extra WebSearch.
+The `yc_news` entries are pre-loaded triggers — Phase A's company subagent uses them in lieu of an extra WebSearch. The YC `website` field is also a first-party company identity anchor: normalize and preserve it instead of handing the engine only the company name. If it is absent or malformed, Phase B must recover a current-employer anchor before the founder can be saved.
 
 ### Step 7: Pool exhaustion check
 

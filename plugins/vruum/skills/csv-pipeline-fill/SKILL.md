@@ -39,6 +39,10 @@ The first non-empty data row after the header offset is treated as the header. L
 - `first_name` ← `first_name`, `first name`, `firstname`, `given name`
 - `last_name` ← `last_name`, `last name`, `lastname`, `surname`, `family name`
 - `company` ← `company`, `company name`, `account`, `organization`, `org`, `employer`
+- `company_id` ← `company_id`, `company id`, `vruum company id` (only accept a valid UUID from a trusted Vruum export)
+- `company_domain` ← `company_domain`, `company domain`, `domain`, `account domain`, `website domain`
+- `company_website` ← `company_website`, `company website`, `account website`, `organization website`
+- `company_linkedin_url` ← `company_linkedin_url`, `company linkedin`, `company linkedin url`, `account linkedin url`
 - `linkedin_url` ← `linkedin`, `linkedin url`, `linkedin_url`, `profile`, `linkedin profile`, `linkedin_profile`, `li_url`
 - `email` ← `email`, `email_address`, `work_email`, `business email`
 - `title` ← `title`, `job_title`, `position`, `role`
@@ -59,6 +63,7 @@ Per row:
 - Strip whitespace from all fields.
 - Lowercase emails.
 - Validate `linkedin_url` matches `^https?://(www\.)?linkedin\.com/in/[^/?]+/?(\?.*)?$`. If invalid (e.g. `https://linkedin.com/company/...`), set to null and log.
+- Normalize `company_domain` to an apex domain (no scheme/path), `company_website` to an http(s) URL, and `company_linkedin_url` to a canonical LinkedIn `/company/` or `/school/` URL. Invalid values become null and are logged; never reinterpret a person LinkedIn URL as a company anchor.
 - Strip query strings from LinkedIn URLs (`?utm_source=...` etc.) — canonicalize to `https://linkedin.com/in/<slug>/`.
 - **Skip rows** where neither `linkedin_url` nor (`name` AND `company`) is present. Log the skipped count.
 - **In-CSV dedup**: dedup the candidate list by lowercased `linkedin_url` (preferred), else by `<lowercased name> + <lowercased company>`. Log duplicates dropped.
@@ -77,6 +82,10 @@ Convert each row to the canonical shape (defined in `pipeline-fill/RESEARCH-ENGI
   first_name: <first_name field if mapped, else null>,
   last_name: <last_name field if mapped, else null>,
   company: <company>,
+  company_id: <trusted Vruum company UUID or null>,
+  company_domain: <normalized apex or null>,
+  company_website: <canonical URL or null>,
+  company_linkedin_url: <canonical company/school URL or null>,
   linkedin_url: <canonicalized URL or null>,
   email: <email or null>,
   person_id: null,
@@ -89,6 +98,8 @@ Convert each row to the canonical shape (defined in `pipeline-fill/RESEARCH-ENGI
   }
 }
 ```
+
+Carry every valid employer anchor through to the engine. Rows with only a company name may still be researched, but they are not eligible for persistence unless Phase B resolves the current employer to a strong anchor.
 
 The `csv_extra_columns` field keeps unmapped data on the candidate so an operator can later inspect it via `search` type=people if a question comes up about why a particular prospect was imported.
 
