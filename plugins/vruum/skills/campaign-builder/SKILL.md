@@ -52,6 +52,15 @@ Two paths — ask which:
 - **Reuse messaging that works** (default when they name an existing campaign): `manage_campaign` action=clone id=<existing campaign uuid> payload={name: "<new name>"}. Cloning carries the messaging structure, tone, and CTA configuration. Find the source campaign with `search` type="campaigns" if you only have its name.
 - **Fresh**: `manage_campaign` action=create payload={name, ...} — then offer to set tone/cadence via action=update once created.
 
+### Exact wording: touch templates (optional)
+
+If the seller wants the SAME proven email/message every time (instead of per-person AI drafting), set a **template** on the touch: `manage_campaign` action=update id=<campaign uuid> with the full `touch_sequence` where that step gains `{"template": {"subject": "...", "body": "..."}}`. Rules:
+
+- Variables: `{{first_name}}`, `{{last_name}}`, `{{company}}`, `{{title}}` — nothing else. Substitution is deterministic; no AI touches the wording. The signature is plain text inside the body.
+- Templates only render for content channels (email, linkedin_message, linkedin_inmail). Email and InMail templates REQUIRE a subject. Don't put templates on connection-request or phone steps.
+- Templated touches mint as ready `draft` rows (generated_by_ai=false) straight into review; a person whose variables can't resolve stays `needs_draft` with `template_fallback_reason` — authored normally at triage.
+- Adding a template never rewrites already-queued touches. To render it over EXISTING unauthored rows, call `manage_campaign` action=apply_template id=<campaign uuid> payload={step: N} and report rendered/skipped counts honestly.
+
 ## Step 4: Assign the cohort
 
 Collect the person ids from the Step 2 preview (including IDs returned by the named-account handoff; re-run the same `search` with a higher `limit` to get the full cohort if needed — paginate with `offset` for big cohorts) and call `manage_campaign` action=members id=<campaign uuid> payload={action: "assign", person_ids: [...]}.
