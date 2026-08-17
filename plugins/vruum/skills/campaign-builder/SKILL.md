@@ -52,6 +52,27 @@ Two paths — ask which:
 - **Reuse messaging that works** (default when they name an existing campaign): `manage_campaign` action=clone id=<existing campaign uuid> payload={name: "<new name>"}. Cloning carries the messaging structure, tone, and CTA configuration. Find the source campaign with `search` type="campaigns" if you only have its name.
 - **Fresh**: `manage_campaign` action=create payload={name, ...} — then offer to set tone/cadence via action=update once created.
 
+After creation, call `fetch` with `type=settings subtype=channel_status` and
+resolve the campaign's selected sender before assignment or launch:
+
+- For email, list every `channels.email.accounts[]` row whose `user_id` matches
+  the selected sender. This is the campaign's configured mailbox pool. Treat
+  only rows with `eligible=true` as the live rotation pool, and show each
+  ineligible row's `eligibility_reason`. Do not describe one mailbox as the
+  fixed sender for every new prospect; first sends rotate across eligible rows.
+- For LinkedIn, match `channels.linkedin_accounts[]` by `user_id` and require
+  `connected=true` for every LinkedIn action the sequence can select.
+- If the sequence needs email and the selected sender has no mailbox with
+  `eligible=true`, stop with `state: "paused"`, code
+  `sender_channel_unavailable`. Do the same for a required LinkedIn route with
+  no connected LinkedIn account.
+- State the identity rule: after the first email send, every email follow-up and
+  reply stays on that mailbox. An unavailable thread-owner mailbox holds the
+  action; Vruum never substitutes another email identity.
+
+Do not silently add a channel because the sender has it connected. The authored
+touch sequence remains the campaign's channel policy.
+
 ### Exact wording: touch templates (optional)
 
 If the seller wants the SAME proven email/message every time (instead of per-person AI drafting), set a **template** on the touch: `manage_campaign` action=update id=<campaign uuid> with the full `touch_sequence` where that step gains `{"template": {"subject": "...", "body": "..."}}`. Rules:
@@ -73,6 +94,16 @@ Show the seller a launch summary before anything sends:
 - Campaign name, source of messaging (cloned from X / fresh)
 - Cohort size and criteria
 - Channels, cadence, and maximum touches (from the campaign config). Enrollment schedules the first action immediately; spacing between later touches must already be represented in the campaign cadence.
+- Selected sender and the email inboxes in that sender's campaign pool
+- Any required sender channel that is disconnected or missing
+- Reply behavior: a human reply permanently pauses every active enrollment for
+  that prospect and queues a response on the channel that received the reply
+- Email identity behavior: new conversations rotate; established conversations
+  and email replies remain pinned to their original inbox
+
+Refresh `fetch type=settings subtype=channel_status` immediately before asking
+for launch confirmation. Do not trust the Step 3 snapshot because a connection
+can change while the seller reviews the campaign.
 
 Then ask explicitly: "Launch outreach to these N people?" Only after a clear yes, call `manage_outreach` action=start id=[person uuids] (native bulk; payload optional `{max_touches, allowed_channels}`). Do not pass `start_immediately`; the MCP intentionally ignores it.
 
