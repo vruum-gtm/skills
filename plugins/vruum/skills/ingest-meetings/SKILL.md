@@ -28,11 +28,15 @@ This is an analyst's job, not a batch import. The attribution step (which person
    - **Set** → the window is everything *after* that date.
    - **`null`** (no meeting logged yet — first run) → **ask the operator for a seed date** ("Ingest meetings since when? (default: last 30 days)"). Never silently default to the whole archive.
 
-2. **Find candidates.** `search` type=kb with `filters={query: "meeting notes transcript live notes", include_content: false}`. Connector results carry `source_kind='connector'`, the meeting date in `modified_at`, a Drive `url`, and predictable filename shapes:
+2. **Find candidates — deterministic recency listing, NOT a keyword search.** `search` type=kb with `filters={doc_type: "connector", modified_after: "<watermark or seed date, ISO-8601>", include_content: false}` and **no `query`**. This returns every synced connector document modified after the watermark, newest first (up to 100). Connector results carry `source_kind='connector'`, the meeting date in `modified_at`, a Drive `url`, and predictable filename shapes:
    - **Gemini:** `… - Notes by Gemini`, `… - Transcript`, `… - Live Notes`
    - **Read.ai:** `… - Read Meeting Report`, `… Smart Notes`
 
-3. **Apply the window — drop everything at/before the watermark** (or the seed date). The Drive's historical archive is intentionally left KB-searchable-only, NOT re-ingested into the CRM. Logging an old meeting (and minting "follow up next week" tasks from a meeting that happened a year ago) is noise.
+   > **Never use a keyword query for this step.** A query (e.g. "meeting notes transcript live notes") is a relevance-ranked top-N sample over the whole archive — on a Drive with years of old transcripts, recent meetings routinely fall below the relevance cutoff and the run wrongly concludes there is nothing new. Keyword search is fine later for looking things up; candidate discovery must be the `modified_after` listing.
+
+3. **Keep only the meeting artifacts.** The listing is every synced doc in the window, so drop non-meeting files (specs, sheets, decks) by the filename shapes above and obvious content. The Drive's historical archive is intentionally left KB-searchable-only, NOT re-ingested into the CRM. Logging an old meeting (and minting "follow up next week" tasks from a meeting that happened a year ago) is noise.
+
+   > **The window field is Drive *modified* time, not the meeting time.** They usually track each other, but an OLD transcript someone re-edits re-enters the window looking "new" — check the meeting date in the title/content, and the Step 5 idempotency marker catches anything already logged. If the listing returns exactly 100 documents, the window overflowed and the OLDEST part was cut (results are newest-first) — tell the user and pull the remainder via the Drive MCP alternative below; a narrower window can NOT recover it (the filter is a lower bound only).
 
 4. Present the surviving candidates as a short list: `name · meeting date · one-line summary`. **If none are newer than the watermark, say so and stop** — there are no new meetings to ingest.
 
