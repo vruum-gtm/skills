@@ -52,7 +52,7 @@ Emit the canonical handoff prompt (defined in `pipeline-fill/RESEARCH-ENGINE.md`
 ```
 Candidate list ready: {N} prospects from sales-nav-deep.
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and objective {objective_id}.
 
 Continue automatically? (y/n)
 ```

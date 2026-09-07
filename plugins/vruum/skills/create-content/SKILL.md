@@ -92,7 +92,7 @@ Then save it **once** with `manage_content` `action="draft"`, payload `{content,
 
 Carousels (document posts) are the top-performing organic format. If the seller has (or you produce) a PDF, image, or video for this post:
 
-1. Store the asset: `manage_campaign` kind='ad' action='store_creative'. Small files: payload `{asset_base64, filename}`. Real files (PDFs/videos — primary path): `{filename, size_bytes, content_type: 'application/pdf' | 'video/mp4'}` → PUT the file to the returned `upload_url` (`curl --fail-with-body -T <file> '<upload_url>'`), then call store_creative again with `{creative_id}` to finalize.
+1. Store the asset: `manage_content` kind='ad' action='store_creative'. Small files: payload `{asset_base64, filename}`. Real files (PDFs/videos — primary path): `{filename, size_bytes, content_type: 'application/pdf' | 'video/mp4'}` → PUT the file to the returned `upload_url` (`curl --fail-with-body -T <file> '<upload_url>'`), then call store_creative again with `{creative_id}` to finalize.
 2. Attach it: include `attachment_creative_id` in the draft payload (or add it later with `action="edit"`). Explicit `attachment_creative_id: null` on edit detaches.
 3. The stored `filename` renders as the LinkedIn document **title** — name it like a headline, not `export-final-v3.pdf`.
 4. Before publishing, open the `attachment_url` from `get_content_review post_ids=[<post_id>]` and review the actual file — it publishes under the seller's identity.

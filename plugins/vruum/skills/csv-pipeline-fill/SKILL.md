@@ -15,7 +15,7 @@ You are the CSV harness-mode source for `/pipeline-fill`. You read a CSV the ope
 ## Inputs
 
 - `file_path`: absolute path to the CSV. If not provided, ask for it. Common locations: `~/Downloads/`, `.context/attachments/` in the workspace.
-- `campaign`: target campaign (single)
+- `objective`: target objective (single)
 - `column_mapping` (optional): explicit `{header_name: canonical_field}` mapping if headers don't auto-resolve. Default: auto-detect.
 
 ## Workflow
@@ -110,7 +110,7 @@ Emit the canonical handoff prompt (defined in `pipeline-fill/RESEARCH-ENGINE.md`
 ```
 Candidate list ready: {N} prospects from csv (after {dedup_count} dedup).
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and objective {objective_id}.
 
 Continue automatically? (y/n)
 ```

@@ -4,7 +4,7 @@ This is the canonical research-engine doc referenced by `/pipeline-fill` (orches
 
 When a source skill produces a candidate list, it hands off to this engine via the canonical handoff prompt at the bottom of this doc. The engine then runs Steps 3–8: pre-flight → Phase A → Phase B → harness gate → save → report.
 
-The orchestrator's SKILL.md owns the front-of-flow: campaign picker (Step 1), source picker (Step 2), and the inline manual-list parser. Everything from Step 3 onward is defined here. **Don't duplicate this doc in source skills** — link to it.
+The orchestrator's SKILL.md owns the front-of-flow: objective picker (Step 1), source picker (Step 2), and the inline manual-list parser. Everything from Step 3 onward is defined here. **Don't duplicate this doc in source skills** — link to it.
 
 ---
 
@@ -79,7 +79,6 @@ Stable operator-visible codes:
 | `person_not_found` | tenant membership points to a missing person | refresh the candidate list |
 | `person_identity_conflict` | fallback identifier belongs to another person | remove the conflicting identifier and review the provider result |
 | `person_research_save_failed` | person research persistence failed with unknown commit status | inspect stored rows before any replay |
-| `source_campaign_forbidden` | caller cannot remove people from their current campaign | ask the source-campaign owner to move them |
 | `research_confirmation_required` | assignment requires explicit approval | pause and show the preview; never self-confirm |
 | `research_partial` | some items failed or were not attempted | resume only `safe_retry_items` |
 
@@ -89,7 +88,7 @@ Backend response details link to `backend/app/domains/people/README.md#named-acc
 
 ## MCP-availability precheck (load-bearing — runs before Step 3)
 
-Before any other Step 3 work, call `fetch(type="research_playbook", id=<campaign_id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
+Before any other Step 3 work, call `fetch(type="research_playbook", id=<objective_id>)`. If this fails with "tool not found" / 404 / connection error, abort the run with this exact message:
 
 > Vruum MCP not configured as a user-scoped server. Run:
 >
@@ -105,15 +104,15 @@ The research_playbook fetch also doubles as the ICP load — capture target_titl
 
 ## Step 3 — Pre-flight
 
-Per campaign's candidate list:
+Per objective's candidate list:
 
 1. **MCP precheck + ICP load** (above) — abort run on failure.
 2. **Batch dedup against existing pipeline.** Call `search(type="people", query=[{name, company, linkedin_url} for each candidate])`. Returns one match record per candidate (in input order). Drop candidates with non-null `match` — they're already in pipeline.
 3. **Batch company fixed-field reuse check.** Collect unique company domains from surviving candidates, deriving the apex from `company_website` when necessary. Call `fetch(type="company_research", id=[the domains], filters={"requested_fields":["company_summary","company_stage","current_priorities","funding_data","growth_metrics"]})`.
    - Reuse only values whose field entry has `status="reusable"`.
-   - `core_reuse.reusable` means the shared summary core is reusable; it never means the campaign brief is complete.
+   - `core_reuse.reusable` means the shared summary core is reusable; it never means the objective brief is complete.
    - Missing, unsourced, stale, invalid, and absent fields remain null inputs. Never carry a raw stored value forward.
-   - **Every company still runs Phase A** for campaign-relative outbound motion, ACV class, sales-cycle inference, and triggers. Reusable fixed values are inputs that avoid redundant fetching, not a Phase A skip signal.
+   - **Every company still runs Phase A** for objective-relative outbound motion, ACV class, sales-cycle inference, and triggers. Reusable fixed values are inputs that avoid redundant fetching, not a Phase A skip signal.
 4. **Operator confirmation gate (CSV / large lists only).** If the original candidate list was >200 (CSV) or >100 (manual list), confirm count to process before continuing.
 
 **Latency:** ~2s for batch dedup + ~1s for batch company cache, regardless of list size. (Per-prospect iteration was ~12s for 60 prospects pre-batch primitives.)
@@ -124,18 +123,18 @@ Per campaign's candidate list:
 
 **Concurrency cap: 10 parallel.** Phase A subagents don't call `research` with action=linkedin_fetch — they hit `fetch` (type=company_research), `research` (action=enrich_company), `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
 
-Dispatch one `vruum-company-deep-researcher` per unique company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools. Include the reusable fixed-field values and their evidence in the prompt; the researcher must still compute campaign-relative outputs.
+Dispatch one `vruum-company-deep-researcher` per unique company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools. Include the reusable fixed-field values and their evidence in the prompt; the researcher must still compute objective-relative outputs.
 
 Dispatch prompt template (fill in placeholders):
 
 ```
-You are vruum-company-deep-researcher. Research this company against campaign "{campaign_name}".
+You are vruum-company-deep-researcher. Research this company against objective "{objective_name}".
 
 company_name: {name}
 domain: {domain}
 website: {company_website or null}
 company_linkedin_url: {company_linkedin_url or null}
-campaign_icp_summary: {one paragraph from the research_playbook fetch}
+objective_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars or default $10K}
 
 Run your workflow (a–i) and return the structured output block.
@@ -166,7 +165,7 @@ Dispatch one `vruum-prospect-deep-researcher` per surviving candidate. Subagent 
 Dispatch prompt template:
 
 ```
-You are vruum-prospect-deep-researcher. Research this prospect against campaign "{campaign_name}".
+You are vruum-prospect-deep-researcher. Research this prospect against objective "{objective_name}".
 
 full_name: {name}
 first_name: {first_name or null}
@@ -184,7 +183,7 @@ phase_a_signals:
   outbound_motion_score: {0|1|2 or null}
   triggers: [list or null]
 
-campaign_icp_summary: {one paragraph from the research_playbook fetch}
+objective_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars}
 
 Run your workflow (a–k) and return the structured output block. Note: do NOT call manage_person action=save_discovered or manage_outreach action=start — those are orchestrator-only and not in your tools list.
@@ -203,12 +202,12 @@ The Phase B result describes the prospect's **current** employer, not merely the
 
 ## Step 6 — Harness pre-filter gate (orchestrator-side, pre-save)
 
-This is the categorical first half of the harness-authoritative gate. It avoids wasted backend saves for obvious dismisses and feeds the deterministic numeric assessment in Step 7c. The backend does not re-score a supplied assessment; it records the harness score and mechanically enforces `match_score >= 70`. `MatchAnalysisAgent` is fallback-only for newly added people when callers omit assessment; duplicates retain their stored score unless a campaign move enqueues an asynchronous re-score.
+This is the categorical first half of the harness-authoritative gate. It avoids wasted backend saves for obvious dismisses and feeds the deterministic numeric assessment in Step 7c. The backend does not re-score a supplied assessment; it records the harness score and mechanically enforces `match_score >= 70`. `MatchAnalysisAgent` is fallback-only for newly added people when callers omit assessment; duplicates retain their stored score unless a objective move enqueues an asynchronous re-score.
 
-Per surviving prospect, evaluate four criteria using the campaign's playbook ICP and the Phase A + Phase B signals:
+Per surviving prospect, evaluate four criteria using the objective's playbook ICP and the Phase A + Phase B signals:
 
-### 1. ACV class meets campaign threshold?
-- `acv_class >= acv_floor_class` → pass this criterion (smb=$5K, mid=$5–50K, ent=$50K+; campaign's `acv_floor` from playbook maps to a class)
+### 1. ACV class meets objective threshold?
+- `acv_class >= acv_floor_class` → pass this criterion (smb=$5K, mid=$5–50K, ent=$50K+; objective's `acv_floor` from playbook maps to a class)
 - If no → dismiss `acv_too_low`. Don't call `manage_person` action=save_discovered.
 
 ### 2. Outbound motion or hiring signal?
@@ -217,7 +216,7 @@ Per surviving prospect, evaluate four criteria using the campaign's playbook ICP
 
 ### 3. Decision-maker level senior?
 - `decision_maker_level == senior` → pass
-- If `mid` → pass with a note (campaign owner decides if mid is acceptable)
+- If `mid` → pass with a note (objective owner decides if mid is acceptable)
 - If `junior` → look for a more-senior person at the same `company_id` in the Phase B output set. If found, swap and rerun. If not, dismiss `decision_maker_junior`.
 
 ### 4. Trigger event in last 90d?
@@ -245,8 +244,8 @@ For non-dismiss outcomes, also set `dismiss_reason` to null and `flag` to the re
 Apply the requested mode before any persistence:
 
 - `research-only`: stop before Step 7a. Return the researched preview and do not call `save_company`, `save_person`, `save_discovered`, or `manage_outreach`.
-- `save`: run Steps 7a–7c, but call `save_discovered` **without** `campaign_id`. This persists the tenant-visible prospect and gate result without assigning a campaign or starting outreach.
-- `save-and-enroll`: run the full chain. Pass `campaign_id` to `save_discovered`, then include passing prospects in Step 7d.
+- `save`: run Steps 7a–7c, but call `save_discovered` **without** `objective_id`. Pass `assessment_objective_id` so the backend records scoring provenance without assigning an objective or starting outreach.
+- `save-and-enroll`: run the full chain. Pass `objective_id` to `save_discovered`, then include passing prospects in Step 7d.
 
 Per surviving prospect:
 
@@ -279,9 +278,9 @@ rejected save persists nothing. There is no create-then-adopt dance anymore.
 
 ### c. Save discovered person — ONE atomic call (authoritative harness score)
 
-Build the authoritative `assessment` from the campaign playbook plus Phase A/B evidence. Score mechanically so reruns agree:
+Build the authoritative `assessment` from the objective playbook plus Phase A/B evidence. Score mechanically so reruns agree:
 
-- Company/ACV fit: 30 points when the known ACV class meets the campaign floor; a known miss is a harness dismiss and never reaches Step 7.
+- Company/ACV fit: 30 points when the known ACV class meets the objective floor; a known miss is a harness dismiss and never reaches Step 7.
 - Buying authority: 25 senior, 15 mid; a junior with no senior replacement is dismissed.
 - Outbound/hiring motion: 20 when present, otherwise 0 and tag `warming`.
 - Recent timing trigger: 15 when present, otherwise 0 and tag `low_priority`.
@@ -293,7 +292,7 @@ The score is the sum (0–100); 70+ passes. Send this exact shape:
 ```json
 {
   "match_score": 85,
-  "match_summary": "Two or three evidence-backed sentences against this campaign's ICP.",
+  "match_summary": "Two or three evidence-backed sentences against this objective's ICP.",
   "alignment_points": [
     {
       "point": "Specific alignment",
@@ -310,7 +309,7 @@ The score is the sum (0–100); 70+ passes. Send this exact shape:
     }
   ],
   "why_now": "Timing rationale with source",
-  "recommended_approach": "Campaign-relevant approach",
+  "recommended_approach": "Objective-relevant approach",
   "overall_confidence": 0.8,
   "scored_by": "harness:pipeline-fill"
 }
@@ -334,15 +333,15 @@ manage_person(
       # topics_of_interest, recent_posts, role_start_date, ...)
     },
     assessment=<object above>,          # REQUIRED with person
-    campaign_id=... or assessment_campaign_id=...  # a campaign ref is REQUIRED
+    objective_id=... or assessment_objective_id=...  # an objective ref is REQUIRED
   }
 )
 ```
 
 **Person already saved:** `payload={person_id: <uuid>, company_id: <resolved company UUID>, assessment: <object above>, ...}` — applies the score update-in-place and atomically binds/promotes the current employer. If no `company_id` was resolved, pass `company_name` plus at least one top-level anchor instead. Never send a bare `person_id` from this harness.
 
-- `mode == save`: add `assessment_campaign_id: <campaign>` so the score is recorded against the campaign ICP, and omit `campaign_id` so no assignment or move occurs. New rows remain unassigned; duplicates keep their existing campaign assignment.
-- `mode == save-and-enroll`: add `campaign_id: <campaign>`; the backend uses it for both assessment provenance and assignment. Omit `assessment_campaign_id` unless it is the same campaign.
+- `mode == save`: add `assessment_objective_id: <objective>` so the score is recorded against the objective ICP, and omit `objective_id` so no assignment or move occurs. New rows remain unassigned; duplicates keep their existing objective assignment.
+- `mode == save-and-enroll`: add `objective_id: <objective>`; the backend uses it for both assessment provenance and assignment. Omit `assessment_objective_id` unless it is the same objective.
 
 This:
 - Creates person + research + pipeline membership in ONE transaction (person shape) — a failed or rejected save persists nothing, so there is no orphan window
@@ -352,11 +351,11 @@ This:
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
-- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future campaigns.
+- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future objectives.
 
 ### d. Bulk enrollment (only after all prospects saved)
 
-Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND backend `company_bound == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={campaign_id: ...})` ONCE at the end of Step 7.
+Collect all `person_id`s where `harness_gate_status == pass` AND backend `quality_gate_pass == true` AND backend `company_bound == true` AND `mode == save-and-enroll`. Then call `manage_outreach(action="start", id=[those person_ids], payload={objective_id: ...})` ONCE at the end of Step 7.
 
 - Per-prospect outcomes are returned (enrolled | skipped | failed). Surface per-prospect failures in the report.
 - If `harness_gate_status` is `warming` or `low_priority`, exclude from the bulk enroll list. Operator decides on review.
@@ -369,7 +368,7 @@ Collect all `person_id`s where `harness_gate_status == pass` AND backend `qualit
 Print to chat AND write to `.context/runs/pipeline-fill-{ISO-timestamp}.md` (workspace-local; `.context/` is gitignored per CLAUDE.md). Format identical for both surfaces.
 
 ```
-Pipeline fill complete: {campaign_name} (source: {source}, mode: {harness|platform})
+Pipeline fill complete: {objective_name} (source: {source}, mode: {harness|platform})
 
 Candidates flow:
   source       : {N from source skill output}
@@ -408,7 +407,7 @@ Pool status: healthy | drying up | exhausted ⚠️
 Audit log written: .context/runs/pipeline-fill-{timestamp}.md
 ```
 
-For multi-campaign runs, group the report by campaign and include a totals summary at the bottom.
+For multi-objective runs, group the report by objective and include a totals summary at the bottom.
 
 ---
 
@@ -433,7 +432,7 @@ When a HARNESS source skill completes its sourcing flow and has a candidate list
 ```
 Candidate list ready: {N} prospects from {source}.
 
-NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and campaign {campaign_id}.
+NEXT: invoke /pipeline-fill Step 3 onward (deep research → harness gate → save) with this list and objective {objective_id}.
 
 Continue automatically? (y/n)
 ```

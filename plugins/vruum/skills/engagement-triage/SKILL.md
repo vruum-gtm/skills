@@ -199,12 +199,12 @@ Engagers are the INBOUND direction: people who reacted to or commented on YOUR p
 
 **Present each person** with score, why (match_summary), what they did (the engagements with post context), and how stale. Recommend one of three decisions.
 
-**CHECK `in_motion` FIRST.** `in_motion_reasons` flags replied / meeting_booked / open_deal / plan_* — these people are already in a live motion. Acting on them risks double outreach or resetting a deliberately deferred plan. For in-motion persons the usual right call is dismiss-with-note or a deliberate, context-aware one-off — never a campaign add.
+**CHECK `in_motion` FIRST.** `in_motion_reasons` flags replied / meeting_booked / open_deal / plan_* — these people are already in a live motion. Acting on them risks double outreach or resetting a deliberately deferred plan. For in-motion persons the usual right call is dismiss-with-note or a deliberate, context-aware one-off — never an objective add.
 
 **The three decisions** (all via `manage_engagements`, `id` = the person UUID, NOT an engagement id):
 
 1. **Act, then record.** Order matters — act FIRST with existing tools, THEN record the decision so attribution stays measurable:
-   - Campaign add: `manage_campaign` action=members → then `manage_engagements` action=`engager_actioned`, id=person_id, payload=`{acted_via: {campaign_id: "<uuid>"}}`.
+   - Objective add: `manage_outreach` action=objective_members → then `manage_engagements` action=`engager_actioned`, id=person_id, payload=`{acted_via: {campaign_id: "<uuid>"}}` (the engager-attribution key is still literally `campaign_id` — VRU-878 gap, out of the MCP-facade scope).
    - One-off touch: `manage_messages` action=`send`/`send_linkedin` (returns the message_id) → then `engager_actioned` with payload=`{acted_via: {message_id: "<uuid>"}}`.
    - An `engager_actioned` without `acted_via` returns an `unattributed` warning — the engager→outcome funnel goes blind. Always pass it.
    - Actioning a sub-70 near miss is allowed (mints their CRM row from the persisted score) — do it when the human read beats the score.
@@ -247,7 +247,7 @@ After the first batch returns for any engagement type:
 
 - **All reactions clean:** "First batch of reactions all approved. N more look similar — approve the rest?" Apply without more agents.
 - **All comments have the same issue** (e.g., all too generic, all missing sender voice): Flag the pattern to the user. "First 8 comments are all generic 'great post' style — likely a prompt issue. Want me to edit them all with the same fix, or skip the batch?"
-- **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as a campaign/prompt config issue rather than fixing each one individually.
+- **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as an objective/prompt config issue rather than fixing each one individually.
 
 ### Step 8: Summary
 
@@ -259,7 +259,7 @@ After all queues are processed, present a summary:
 - Skipped
 - Plans stopped (from skip cascades)
 - Content posts approved/scheduled
-- Engagers actioned (campaign adds / one-offs, with acted_via) and dismissed
+- Engagers actioned (objective adds / one-offs, with acted_via) and dismissed
 
 ## Edge cases
 
