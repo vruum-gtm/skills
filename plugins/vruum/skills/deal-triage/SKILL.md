@@ -53,7 +53,7 @@ Each subagent prompt should include:
 - Instructions to follow the subagent workflow below
 
 **Subagent workflow** (each subagent runs read-only and independently — its tool surface excludes deal writes by design; mutation happens later in Step 4 with the seller's approval):
-1. Call `get_deal_360` for the full deal context in one call (deal info, stakeholders, MEDDIC qualification state, recent activity timeline). If the consolidated endpoint isn't available in your tool list, fall back to `fetch` with type=deal — the deal row carries `qualification` and `qualification_score` when previously computed.
+1. Call `get_deal_360` for the full deal context in one call (deal info, stakeholders, MEDDIC qualification state, the Customer Impact record under `impact_commitment` — SPICED fields with their basis, status, derived confidence, and `verified_priority` — and the recent activity timeline). If the consolidated endpoint isn't available in your tool list, fall back to `fetch` with type=deal — the deal row carries `qualification` and `qualification_score` when previously computed.
 2. **Read** `qualification` / `qualification_score` from the response — do NOT qualify from the reviewer. `manage_deal` with action=qualify writes a fresh MEDDIC JSONB (an LLM call + a DB write); the reviewer is read-only. If `qualification` is null, the score is < 40, or the last qualification is older than 30 days, the reviewer emits a `re_qualify` recommendation and the orchestrator (this skill) runs `manage_deal` action=qualify ONLY after the seller approves in Step 4.
 3. Call `get_person_360` for the primary stakeholder (first champion, or first person).
 4. Call `fetch` with type=account_state for the deal's account stage + health. If 404 (no row yet), default to `prospect` / null health.
@@ -71,7 +71,7 @@ RISK_SCORE: {0-100}
 ALERTS: {silence_14d, overdue_next_step, slippage, etc. or "none"}
 STAKEHOLDERS: {count} ({comma-separated roles})
 QUALIFICATION: {score}/100 — gaps: {comma-separated gaps or "none"}
-RECOMMENDATION: {advance_stage | set_next_step | add_stakeholder | re_qualify | close | mark_stalled | no_action}
+RECOMMENDATION: {advance_stage | set_next_step | add_stakeholder | re_qualify | record_impact | close | mark_stalled | no_action}
 CONFIDENCE: {high | medium | low}
 REASONING: {1-2 sentences explaining the recommendation, including post-close trajectory when account_stage is informative}
 SUGGESTED_NEXT_STEP: {specific, actionable next step}
@@ -97,7 +97,8 @@ After presenting results, the user can request actions. Execute them using MCP t
 - **Advance stage** → `manage_deal` action=stage with payload={stage}
 - **Set next step** → `manage_deal` action=update with payload={next_step, next_step_due_at}
 - **Add stakeholder** → `manage_deal` action=stakeholders with payload={action: 'add', person_id, role}
-- **Re-qualify** → `manage_deal` action=qualify (runs MEDDIC analysis again)
+- **Re-qualify** → `manage_deal` action=qualify (runs MEDDIC analysis again and refreshes the Customer Impact record from it)
+- **Record impact** → `manage_deal` action=impact_commitment with the SPICED fields the seller confirmed (payload={situation?, pain?, impact? {rational? {metric, baseline, target, unit, by}, emotional?}, critical_event? {kind, due|milestone, consequence}, decision?, first_impact_by?, clear_critical_event?}). Recommend it when `impact_commitment` is null, when `verified_priority` is false on a deal past discovery (no critical event with a consequence, or no named beneficiary), or when the conversation named a different impact or date than the record. Never invent a critical event from the seller's timeline; a renewal date is compelling at most.
 - **Close deal** → `manage_deal` action=won or action=lost (payload carries win_factors / loss_reason)
 - **Reopen deal** → `manage_deal` action=reopen with payload={stage}
 - **Mark stalled** → `manage_deal` action=stalled (records the stalled outcome; payload optional)
