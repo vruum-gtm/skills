@@ -210,6 +210,15 @@ Discovery-path candidates produced in either path use the canonical shape in `RE
 
 Do not duplicate the engine logic in this skill — link operators back to the engine doc when they ask "what does the gate check?" or "how does the save chain work?"
 
+## Objective-specific research after identity resolution
+
+For saved, operator-authorized objective research, follow
+[OBJECTIVE-RESEARCH.md](OBJECTIVE-RESEARCH.md). It resolves the reviewed questions
+for the intended stage and deduplicates shared account work. Generic company/person
+reports and fit scores do not prove those questions answered. Research-only mode
+returns the gap preview without writes; save modes use original-source answers.
+Do not start Vruum agents from the harness path. Existing activation gates apply.
+
 ## Notes
 
 - **Composability** with source skills: source skills produce candidate lists; this orchestrator runs the research engine. Both directions allowed (operator can run a source skill standalone or run /pipeline-fill as the front door).

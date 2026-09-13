@@ -19,7 +19,7 @@ Call these in parallel:
 - `fetch` type=person_research — structured research data (if exists)
 - `fetch` type=company_research — company intelligence
 
-If research is thin (no person_research, or match_analysis is null):
+If the selected objective has missing, stale, or conflicting research facts:
 - `research` action=linkedin_fetch — pull their recent posts and profile
 - WebSearch for "[person name] [company name]" — recent news, talks, publications
 - `search` type=kb — relevant sales docs
@@ -77,3 +77,23 @@ If approved: call `manage_person` action=note (payload={body}) with a condensed 
 - The diarization should be opinionated. "This person is probably not a fit because..." is more valuable than "Match score is 65."
 - Always note what you're uncertain about. Confidence without uncertainty is just hallucination.
 - The SAYS vs ACTUALLY gap requires reading multiple sources and holding contradictions in mind. Don't rush it.
+
+## Saving source-attributed person research
+
+Use `research(action="save_person", payload={person_id, idempotency_key,
+research_objective_id, sources_by_field, ...observed_fields})`. Set the objective
+explicitly when researching for one. Each supplied non-null research field needs
+an original public URL and `observed_at`; preserve both on retries. Omit unknown
+fields rather than sending null, which clears them. Read `fact_states` to inspect
+source reports and conflicts. A source report or prior execution receipt does not
+establish action readiness. Do not send the retired completeness research score.
+
+## Objective-specific questions
+
+When the operator supplies an objective, use the shared
+[reviewed gap workflow](../pipeline-fill/OBJECTIVE-RESEARCH.md) for its typed
+research questions. Preview the selected person and intended stage, reuse original
+sources, and save supported observations through `save_answer`. Generic profile
+fields and diarization notes do not substitute for answers. Present conflicting
+or customer-confirmation gaps explicitly. Use the own-agent path unless the
+operator selects a separately approved Vruum run.

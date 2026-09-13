@@ -256,6 +256,17 @@ In `save` and `save-and-enroll` modes, reuse a trustworthy candidate `company_id
 
 ### b. Identity prep (names + company linkage for the atomic save)
 
+**Person source contract:** Person research fields require their own original public
+source URLs and `observed_at` dates in `sources_by_field`, plus a stable
+`idempotency_key`. Supply `research_objective_id` for the objective under review;
+omission selects the named workspace baseline. This also applies inside a
+`save_discovered` person block. Identity-only fields require no research sources.
+Omit unknown or unobserved facts. Explicit null clears a field. Never send a
+completeness `research_score`, invent source dates, or use a save time as an
+observation time. The response's `fact_states` reports stale/conflicting values.
+Internal provider observations remain private; external callers cannot label data
+as licensed-provider sources to grant reuse.
+
 **VRU-722 atomic flow:** `research` action=save_person is UPDATE-ONLY (refreshing
 research on someone already saved). New prospects are created by ONE
 `manage_person` action=save_discovered call carrying a `person` block — person,
@@ -274,7 +285,7 @@ rejected save persists nothing. There is no create-then-adopt dance anymore.
 
    For a **new** prospect, place the linkage inside `person`. For an **existing** `person_id`, send the same linkage at the top level of `save_discovered` (`company_id`, or `company_name` plus anchors). Never assume an existing person's prior membership is already bound.
 
-3. **Refreshing someone ALREADY saved** (e.g. operator pasted a Vruum person UUID, or a triage-time research refresh): call `research(action="save_person", payload={person_id: <uuid>, ...fresh research fields})` — update-in-place, `researched_at` moves, and the response's `updated_fields`/`skipped_fields` tell you exactly what landed (contact fields are backfill-only; corrections go through `manage_person` action=update_contact). NEVER pass the UUID as the facade `id` argument — save_person takes no `id` and will 422. If save_person returns 404 `person_not_found_for_update`, the person isn't saved yet — use the step-c atomic save instead.
+3. **Refreshing someone ALREADY saved** (e.g. operator pasted a Vruum person UUID, or a triage-time research refresh): call `research(action="save_person", payload={person_id: <uuid>, idempotency_key: <stable save key>, research_objective_id: <objective UUID>, sources_by_field: <original per-field URLs and observed_at>, ...fresh research fields})` — update-in-place, original source dates determine freshness, and the response's `updated_fields`/`skipped_fields` tell you exactly what landed (contact fields are backfill-only; corrections go through `manage_person` action=update_contact). NEVER pass the UUID as the facade `id` argument — save_person takes no `id` and will 422. If save_person returns 404 `person_not_found_for_update`, the person isn't saved yet — use the step-c atomic save instead.
 
 ### c. Save discovered person — ONE atomic call (authoritative harness score)
 
@@ -352,6 +363,15 @@ This:
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
 - **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future objectives.
+
+### c2. Reviewed objective questions
+
+When the operator authorized objective research, apply
+[OBJECTIVE-RESEARCH.md](OBJECTIVE-RESEARCH.md) to the saved identities before
+activation. Preview up to 20 subjects together so inherited account questions run
+once. Save only original-source observations through the common answer writer.
+Report unresolved requirements; do not turn a fit score or completed research unit
+into readiness. Research-only mode never enters this save step.
 
 ### d. Bulk enrollment (only after all prospects saved)
 
