@@ -20,7 +20,7 @@ Ask what cohort they want to reach if they haven't said. Criteria can combine:
 
 - **List**: a named list (e.g. mirrored from a CRM export) — `filters={list: "<name or id>"}`
 - **Custom attributes** from their import (e.g. sorted company size / industry / region) — `filters={custom: {"sorted_company_size": "small", "sorted_industry": "staffing & recruiting"}}`
-- **Persona** (buying role): influencer | decision_maker | economic_buyer — `filters={persona: "economic_buyer"}`
+- **Persona** (buying-center role, Revenue Architecture Table 8.2): initiator | user | champion | decider | gatekeeper | influencer | executive_buyer | approver | purchaser — `filters={persona: "executive_buyer"}`
 - Standard filters: stage, score range, enrollment, relationship type
 
 If they reference attributes you haven't seen, call `search` with `type="people"` and `limit=1` first and inspect a row's `custom_fields` keys so you offer real attribute names, not guesses.
