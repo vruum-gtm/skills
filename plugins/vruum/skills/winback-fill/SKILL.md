@@ -93,7 +93,7 @@ manage_account(
   payload={
     practice: 'winback',
     event_type: 'winback_meeting_booked',
-    value_delivered_numeric: deal.estimated_value,
+    value_delivered_numeric: deal.terms.annual_value_minor,  // the money record's annual value, minor units
     ...
   }
 )

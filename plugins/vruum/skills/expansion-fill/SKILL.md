@@ -73,14 +73,14 @@ manage_account(
   payload={
     practice: 'expansion',
     event_type: 'expansion_meeting_booked',
-    value_delivered_numeric: deal.estimated_value,
+    value_delivered_numeric: deal.terms.annual_value_minor,  // the money record's annual value, minor units
     ...
   }
 )
 ```
 You do NOT manually record the impact event for tagged plans. If a meeting is booked outside Vruum (manual scheduling, calendar tool not connected), record it manually via `manage_account` action=record_impact from the person 360 Activity tab.
 
-After 30 days, run `fetch` type=scoreboard subtype=impact to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching booked deal values.
+After 30 days, run `fetch` type=scoreboard subtype=impact to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching the booked deals' annual values (minor units, one currency).
 
 ## When NOT to use this skill
 
