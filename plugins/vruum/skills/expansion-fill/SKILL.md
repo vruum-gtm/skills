@@ -44,7 +44,7 @@ Step 3 — Per-account enrichment. For each surfaced (person, company):
 
 Step 4 — Score and rank. Within the cohort, rank by:
 - (a) **Renewal pressure** — `accounts.renewal_at` within 60-180 days → up-rank
-- (b) **Health signal** — `accounts.health_score` > 70 (only push expansion if account is healthy)
+- (b) **Health signal** — the derived stage with its basis: `adopting` / `expansion_ready` means impact recurs (value events in ≥3 of the last 4 weeks); there is no typed health score
 - (c) **Recent engagement** — if there's `practice='adoption'` activity in the last 60d (account engaged), up-rank
 - (d) **Account stage** — `accounts.account_stage IN ('adopting', 'expansion_ready')` → up-rank; `dormant` → down-rank or skip
 - (e) **Champion present** — if any `company_people` row has been engaged in the last 30d (touch sent or reply received), surface the champion's name
@@ -66,7 +66,7 @@ Step 6 — Hand off to outreach. Two options:
 - **Option A (recommended)**: Approve the ranked list, then for each account: run `/pipeline-fill` with that prospect_list — same Sales Nav harness flow, just sourced from the expansion cohort instead of cold. Tag the resulting `outreach_plans.tag` with `bowtie_pilot:expansion` so success-tracking finds them.
 - **Option B**: Direct `manage_outreach` action=start with an expansion objective: create it with `target.lever = {"component": "expansion"}` (`objective_create`) and the right tone — formal, ROI-focused, no opener-hooks since the customer already knows you. The lever does the sourcing work: the plan's pool is the installed base (`accounts.account_stage = 'expansion_ready'`, no open deal), no discovery provider runs, the conversion evidence is scoped to expansion (an acquisition rate never sizes it), and `objective_source` qualifies the buyer titles at those accounts for free.
 
-Step 7 — Success tracking (auto). When a calendar webhook fires a `meeting_booked` event on an outreach plan tagged `bowtie_pilot:expansion`, the webhook handler in `backend/app/domains/calendar/` auto-records the impact event, equivalent to:
+Step 7 — Success tracking (auto). When a calendar `meeting_booked` outcome lands on an action whose objective's growth lever names expansion (`target.lever.component = "expansion"`), `deals/services/lifecycle_outcomes.record_lifecycle_meeting` records the impact event, equivalent to:
 ```
 manage_account(
   action="record_impact",
@@ -78,9 +78,9 @@ manage_account(
   }
 )
 ```
-You do NOT manually record the impact event for tagged plans. If a meeting is booked outside Vruum (manual scheduling, calendar tool not connected), record it manually via `manage_account` action=record_impact from the person 360 Activity tab.
+You do NOT manually record the impact event for meetings booked under an expansion objective. If a meeting is booked outside Vruum (manual scheduling, calendar tool not connected), record it manually via `manage_account` action=record_impact from the person 360 Activity tab — `event_type` must be one of the expansion practice's types.
 
-After 30 days, run `fetch` type=scoreboard subtype=impact to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching the booked deals' annual values (minor units, one currency).
+After 30 days, run `fetch` type=scoreboard subtype=impact with `id=<company_id>` per account to measure cohort uplift: expansion `event_count` should be > 0 with `impact_sum` matching the booked deals' annual values (minor units, one currency).
 
 ## When NOT to use this skill
 

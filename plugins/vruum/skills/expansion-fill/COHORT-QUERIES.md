@@ -48,7 +48,7 @@ candidate in the skill's Step 3 enrichment and:
 - Up-rank rows where `account_stage` is `adopting` or `expansion_ready`.
 - Down-rank or skip rows where `account_stage` is `dormant` or `churned` —
   those belong in `/winback-fill`, not expansion.
-- Use `accounts.health_score` (returned in the same payload) as a gate;
+- Use the derived `account_stage` with its `account_stage_basis` (returned in the same payload) as the gate: `adopting` / `expansion_ready` means impact recurs;
   `> 70` is the floor for a productive expansion conversation.
 
 The skill does not change account stages itself — stages are set in the
@@ -61,7 +61,7 @@ Per-account features the skill computes from `get_person_360` +
 
 - `accounts.renewal_at` (from `fetch` type=account_state) — proximity weight
   (60-180d sweet spot)
-- `accounts.health_score` — gate (>70 only)
+- `accounts.account_stage` — gate (`adopting` or `expansion_ready` only; there is no typed health score)
 - `accounts.account_stage` — boost (`adopting`, `expansion_ready`) or skip
   (`dormant`, `churned`)
 - Most recent `practice='adoption'` activity in last 60d — engagement signal

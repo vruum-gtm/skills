@@ -19,7 +19,7 @@ A closed-lost deal is not a closed door. Most "lost" deals had a real conversati
 - Their company has had a recent trigger (new exec, funding, news event)
 - A former champion has moved to a new company (the "champion follows you" play)
 
-The impact scoreboard and the `account_stage='churned'`/`'dormant'` tagging let this skill target the right accounts deterministically.
+The impact scoreboard and the derived `account_stage` (`churned` on a recorded churn or cancelled subscription, `dormant` after 60 days without impact — see `docs/ACCOUNT-LIFECYCLE-VOCABULARY.md`) let this skill target the right accounts deterministically.
 
 ## Where heavy logic lives
 
@@ -57,7 +57,7 @@ Limit 50. Order by `stage_changed_at DESC` (most-recent loss first — freshest 
 Step 3 — Per-account enrichment.
 - `get_person_360` — what was the original conversation? `analysis` JSONB on the old deal often captures objection patterns.
 - `fetch` type=company_research — has anything changed at the company? New exec? Funding? Recent news?
-- `accounts.account_stage` — if `churned`, the account has been flagged as dead. Skip or down-rank unless variant 2/3 applies.
+- `accounts.account_stage` — if `churned`, a churn was recorded (or the subscription cancelled); `account_stage_basis` says which. Skip or down-rank unless variant 2/3 applies.
 
 Step 4 — Score and rank.
 - **Loss reason quality**: `competitor_chose_other`, `timing`, `budget_cycle`, `no_decision` are revivable. `no_fit`, `no_budget_permanent` are not (already filtered, but double-check).
@@ -86,7 +86,7 @@ Step 6 — Hand off. Two options:
 - **Option A (recommended)**: Approve the list; run `/pipeline-fill` with the prospect_list for harness deep research + outreach. Plans get `outreach_plans.tag = bowtie_pilot:winback`.
 - **Option B**: Direct `manage_outreach` action=start with a winback-flavored objective (pre-create a `winback_<your-tenant>` objective — tone: empathetic, no apology, lead with what changed since last conversation). Winback is the book's closed loop over the Bowtie, not a growth component: leave `target.lever` at its default (acquisition by volume) and select the dormant/churned accounts through the objective audience (`objective_account`), so their people are the cohort and the plan does not buy new prospects for them.
 
-Step 7 — Success tracking (auto). The calendar webhook records the impact event, equivalent to:
+Step 7 — Success tracking (auto). A calendar `meeting_booked` outcome with a `churned` or `dormant` account records the impact event (`deals/services/lifecycle_outcomes.record_lifecycle_meeting`), equivalent to:
 ```
 manage_account(
   action="record_impact",
@@ -98,7 +98,9 @@ manage_account(
   }
 )
 ```
-when a meeting is booked on a plan tagged `bowtie_pilot:winback`. You do NOT manually fire for tagged plans. After 30 days, `fetch` type=scoreboard subtype=impact should show winback `event_count` > 0.
+whatever plan or objective the meeting came from. You do NOT fire it by hand. After 30 days, `fetch` type=scoreboard subtype=impact with `id=<company_id>` should show winback `event_count` > 0.
+
+After a successful winback the stage follows the facts: a new open deal makes a `churned`/`dormant` account `engaged`, a win makes it `committed`, a `renewal_signed` impact event (practice expansion) cancels the recorded churn. Nobody types the stage (`manage_account` action=state carries no `account_stage`).
 
 ## When NOT to use this skill
 
