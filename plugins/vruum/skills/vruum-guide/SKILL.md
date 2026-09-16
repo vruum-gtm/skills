@@ -85,7 +85,7 @@ If several fire, pick the one with the highest expected revenue impact per unit 
 ## Hard rules
 
 - **Hand off, never re-teach.** When a specialist skill exists, invoke it. Do not reproduce its steps here — if you find yourself writing a numbered sub-procedure that exists in another skill, stop and invoke the skill.
-- **Inherit every safety gate.** Launch confirmations, review requirements, and approval modes belong to specialist skills and the platform. Never bypass or pre-approve them. Manual outreach requires review; an explicitly configured `full_auto` objective may auto-approve harness-authored outreach under backend send/audit guards. Public content and ad spend retain their own explicit approval gates.
+- **Inherit every safety gate.** Launch confirmations, review requirements, and approval modes belong to specialist skills and the platform. Never bypass or pre-approve them. Every outreach touch is approved by a person before it sends; there is no automation tier that removes that approval, however the draft was authored. Public content and ad spend retain their own explicit approval gates.
 - **Tailor from reads, not stereotypes.** Every recommendation cites their actual numbers from Step 1. If a read fails, say what you couldn't see — don't fill the gap with a guess.
 - **One recommendation at a time.** A menu of five options is how sessions end with nothing shipped.
 - **Update `~/.vruum/guide-state.json` before ending**, and close by naming what shipped this session and what you'd suggest next time.
