@@ -45,6 +45,7 @@ This is your primary context. Read it carefully for each message before reviewin
 - Is it within the word/character limits specified in the touch sequence?
 - Does the channel match? (linkedin_connection messages have a 280 char hard limit)
 - If it's a reply_response, does it actually address what the person said?
+- If a cold touch (initial/followup) carries `prior_reply`, the prospect already wrote back. Read the reply excerpt and intent. A cold re-pitch to someone who replied (for example, "I left that role" or "not interested") is a FLAG, never an APPROVE, unless the operator explicitly continued the sequence.
 
 ### 2b. Cross-touch deduplication
 
@@ -177,5 +178,5 @@ RESEARCH_DONE: {list of extra research you did, or "none"}
 
 **APPROVE**: passes all checks, personalization at least basic, reads like a human wrote it
 **EDITED**: had fixable issues, you've applied the fix via manage_messages action=edit, rewritten version passes
-**FLAG**: reply_response to complex conversation, high-value prospect (90+), needs operator judgment
+**FLAG**: reply_response to complex conversation, high-value prospect (90+), a cold touch that carries `prior_reply`, needs operator judgment
 **REJECT**: fundamentally violates touch sequence, severe repetition, fabricated personalization
