@@ -77,7 +77,7 @@ Important boundaries: outreach/reply/content/comment prose is authored in the ha
 | Closed-won customers with no follow-on motion | `/expansion-fill` |
 | Recoverable lost/churned relationships | `/winback-fill` |
 | Offer/ICP is unclear or sellability is questionable | profile auto-fill first; `/positioning-diagnostic` only for the narrower cold-outreach go/no-go |
-| Unclassified personas blocking targeting | `research` action=classify_personas, then `/objective-builder` |
+| Unclassified personas blocking targeting | classify each contact in the harness and write it with `manage_person` action=set_persona, then `/objective-builder` |
 | Everything humming | `fetch` type=insights subtype=improve — review what the system learned this week |
 
 If several fire, pick the one with the highest expected revenue impact per unit of seller attention. Replies and active deals usually outrank new activity; expansion can outrank cold acquisition when the evidence is strong. Say why in one sentence. Mention the runner-up only if the user asks.

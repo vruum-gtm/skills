@@ -25,7 +25,7 @@ Ask what cohort they want to reach if they haven't said. Criteria can combine:
 
 If they reference attributes you haven't seen, call `search` with `type="people"` and `limit=1` first and inspect a row's `custom_fields` keys so you offer real attribute names, not guesses.
 
-If personas matter to their criteria and contacts are unclassified (`filters={persona: "unclassified"}` returns many), offer to run `research` with action=classify_personas first (payload `{}` classifies every unclassified contact; large runs return a job id — poll with `fetch` type=job until completed, then continue).
+If personas matter to their criteria and contacts are unclassified (`filters={persona: "unclassified"}` returns many), offer to classify them first. Vruum has no backend persona classifier: read each unclassified contact (`get_person_360`), decide the buying-center role, and write it with `manage_person` action=set_persona id=<person uuid> payload={persona, reasoning} (an `id` array applies one persona to several people). Then continue.
 
 ## Step 2: Preview the cohort
 

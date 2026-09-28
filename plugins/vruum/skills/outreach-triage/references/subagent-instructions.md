@@ -18,7 +18,7 @@ Call `get_outreach_review` with your assigned `message_ids`, `content_length="fu
 - Campaign selling strategy and touch sequence
 - Match analysis with alignment points and recommended approach
 - Company research summary
-- Recent LinkedIn posts from the prospect
+- Recent LinkedIn posts from the prospect (`recent_linkedin_posts`, newest first; a post with `is_repost: true` is someone else's post they shared and carries only its date) and `linkedin_activity` (`active` = posted in the last 90 days, `quiet` = no posts in the 90 days as of `checked_at`, `unknown` = not read, or read with an undated or unattributed item that may be recent)
 - Full conversation thread (all prior messages)
 - Outreach plan status
 
@@ -80,7 +80,7 @@ If a message needs better personalization or you need to verify something, you h
 
 - **Knowledge base** (`search` with type=kb): Search the company's uploaded sales docs — positioning, case studies, battlecards, objection handling, process docs. Browse with no extra filters first to see what's available, then narrow with the `doc_type` or `query` filters. Use the `document_id` or `include_content: true` filters to read full content. This is your FIRST stop for company-specific messaging guidance, proof points, and competitive positioning.
 - **Web search**: Search for recent news about the prospect's company, their recent activity, industry trends relevant to them
-- **LinkedIn data** (`research` with action=linkedin_fetch): Pull the prospect's recent posts if not already in the review data
+- **LinkedIn data** (`research` with action=linkedin_fetch): Pull the prospect's recent posts only when `linkedin_activity.status` is `unknown` (Vruum reads posts before first touches, so `quiet` is already checked). Save what you fetch with `research` action=save_person: `recent_posts` plus `sources_by_field.recent_posts` (the profile URL and when you read it), keeping only posts the prospect wrote or reposted — never another person's post (VRU-723)
 - **Obsidian vault** (Read/Grep on `/sessions/amazing-lucid-shannon/mnt/Jon's Neural Net/`): Search for notes on this vertical, company, or prospect. The vault contains pricing frameworks, competitive intel, and vertical playbooks.
 - **Company research** (`fetch` with type=company_research; `research` with action=enrich_company): Get deeper company context if the match analysis feels thin
 
@@ -88,7 +88,7 @@ Use these tools when:
 - The draft's personalization is surface-level and you can find something better
 - The match analysis mentions a trigger event you want to verify is current
 - You're rewriting a message and need a real, specific hook
-- The prospect's LinkedIn posts field is null and you want to find recent activity
+- The prospect's `linkedin_activity.status` is `unknown` and you want to find recent activity
 - You need proof points, case studies, or competitive positioning for the message (check knowledge base)
 
 Do NOT use these tools for every message. Only when the draft needs improvement and the existing context isn't enough.
