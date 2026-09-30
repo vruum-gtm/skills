@@ -1,9 +1,9 @@
 {
   "name": "vruum",
-  "version": "0.6.66",
-  "description": "Vruum AI skills + remote MCP server for B2B GTM teams. Skills for outreach triage, engagement triage, pipeline filling, prospect enrichment, and reply diagnosis, paired with the full Vruum MCP tool surface over OAuth 2.1.",
+  "version": "0.6.67",
+  "description": "Connect your Vruum workspace to review revenue priorities, manage deals, research prospects, and prepare outreach through guided skills and authenticated MCP tools.",
   "author": {
-    "name": "Vruum AI",
+    "name": "Vruum",
     "url": "https://vruum.ai"
   },
   "license": "MIT",
@@ -13,7 +13,26 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Vruum",
-    "shortDescription": "Vruum sales skills + remote MCP server",
-    "category": "Productivity"
+    "shortDescription": "Manage your revenue work",
+    "longDescription": "Connect your existing Vruum workspace to review daily priorities, inspect deals, research people and companies, and prepare outreach. Use guided workflows to review drafts and record updates in your workspace. Access follows your Vruum account permissions, and execution follows your workspace policies.",
+    "developerName": "Vruum",
+    "category": "Productivity",
+    "capabilities": [
+      "Revenue priorities",
+      "Deal review",
+      "Prospect research",
+      "Outreach review"
+    ],
+    "websiteURL": "https://vruum.ai",
+    "privacyPolicyURL": "https://vruum.ai/privacy",
+    "termsOfServiceURL": "https://vruum.ai/terms",
+    "defaultPrompt": [
+      "What needs my attention in Vruum today?",
+      "Review my stalled deals and recommend the next action for each.",
+      "Review my outreach drafts and suggest improvements before I approve them."
+    ],
+    "brandColor": "#3B82F6",
+    "composerIcon": "./assets/logo.svg",
+    "logo": "./assets/logo.svg"
   }
 }

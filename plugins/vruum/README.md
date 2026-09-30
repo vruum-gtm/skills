@@ -63,13 +63,21 @@ Register the MCP server via your editor's MCP setup (each one has its own UI / c
 
 ### Claude Desktop / Claude.ai (Cowork)
 
-Install the Vruum plugin via the official plugin directory — bundles the connector and the skills in one step:
+Download the Vruum plugin ZIP to bundle the connector and skills in one step:
 
 [github.com/vruum-gtm/skills/releases/latest/download/vruum-plugin.zip](https://github.com/vruum-gtm/skills/releases/latest/download/vruum-plugin.zip)
 
 Download and upload via **Settings → Customize → Plugins → "+"**.
 
-### ChatGPT / Windsurf / other harnesses without plugin support
+### ChatGPT
+
+Vruum's OpenAI directory submission is in preparation. This package does not
+establish an approved directory listing. Until that listing is available,
+connect `https://api.vruum.ai/mcp` through custom remote MCP where your account
+supports it. The npm installer below requires a local harness; it does not
+install skills into ChatGPT.
+
+### Other local harnesses without plugin support
 
 ```bash
 npx --yes @vruum/skills@latest install --target /path/to/skills/dir
