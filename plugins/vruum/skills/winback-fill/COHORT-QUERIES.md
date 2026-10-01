@@ -11,12 +11,12 @@ tenant bind to choose.
 # Step 1: pull closed-lost deals (scoped to your session's tenant)
 lost = search(type="deals", filters={"outcome": "lost"}, limit=200)
 
-# Step 2: keep deals lost between 90 days and 18 months ago
+# Step 2: keep deals lost between 90 days and 365 days ago
 ninety_days_ago = now() - 90 days
-eighteen_months_ago = now() - 18 months
+oldest_eligible = now() - 365 days
 revival_window = [
     d for d in lost.deals
-    if eighteen_months_ago < parse(d.stage_changed_at) < ninety_days_ago
+    if oldest_eligible < parse(d.stage_changed_at) < ninety_days_ago
 ]
 
 # Step 3: drop terminal loss reasons — these are NOT revivable
@@ -34,7 +34,7 @@ candidates = [d for d in revivable if d.person_id not in open_person_ids]
 Cap the candidate list to the 50 most-recently-lost (sort by
 `stage_changed_at DESC`) before per-account enrichment.
 
-The 18-month upper bound prevents revival of ancient conversations the
+The 365-day upper bound prevents revival of ancient conversations the
 buyer has forgotten. The 90-day lower bound prevents the "thanks but no
 thanks" buyer from being re-pitched while the rejection is still fresh.
 

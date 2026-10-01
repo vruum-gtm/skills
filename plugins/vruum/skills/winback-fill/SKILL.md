@@ -13,7 +13,7 @@ You are a winback-side pipeline filler. While `/expansion-fill` targets won-and-
 
 ## Why this skill exists
 
-A closed-lost deal is not a closed door. Most "lost" deals had a real conversation, a fit signal, and a circumstantial blocker — wrong timing, wrong champion, wrong budget cycle. Within 6-18 months, those circumstances change. The data points worth revisiting:
+A closed-lost deal is not a closed door. Most "lost" deals had a real conversation, a fit signal, and a circumstantial blocker — wrong timing, wrong champion, wrong budget cycle. Within 3-12 months, those circumstances change. The data points worth revisiting:
 - The person is still at the same company (relationship intact)
 - The original loss_reason was NOT `no_fit` or `no_budget_permanent` (the deal was lose-able, not unwinnable)
 - Their company has had a recent trigger (new exec, funding, news event)
@@ -46,7 +46,7 @@ is automatic from your authenticated session. Pick a variant per your intent
 
 For variant 1 (silent-deal revival), the cohort criteria:
 - `outcome == 'lost'`
-- `stage_changed_at` between 90 days ago and 18 months ago
+- `stage_changed_at` between 90 days ago and 365 days ago
 - `loss_reason NOT IN ('no_fit', 'no_budget_permanent')` (these are terminal — don't re-pitch)
 - Person is still surfaceable via `get_person_360` (still at company)
 - No open deal currently exists on that person (post-filter against
