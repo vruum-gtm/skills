@@ -13,12 +13,20 @@ description: >-
 
 Your meeting transcripts (Gemini Meet auto-notes, Read.ai reports) land in Google Drive. With Drive connected to Vruum, those transcripts sync into your knowledge base — but on their own they're just searchable text. This skill turns them into CRM activity: each transcript gets **attached to the right person and deal as a meeting** on their timeline, and its **action items become Vruum tasks** that show up in your daily briefing.
 
-This is an analyst's job, not a batch import. The attribution step (which person? which deal?) is where a wrong guess does real damage — a meeting logged on the wrong account misleads whoever reads it next. So **you confirm every attach before anything is written**, the skill never auto-attaches an ambiguous match, and it's **safe to re-run** (already-logged meetings and tasks are skipped, not duplicated).
+This is an analyst's job, not a batch import. The attribution step (which person? which deal?) is where a wrong guess does real damage — a meeting logged on the wrong account misleads whoever reads it next. So **you confirm every attach before anything is written**, the skill never auto-attaches an ambiguous match, and every retry checks the meeting and task receipts separately.
 
 ## What this needs
 
 - **Drive connected to Vruum.** The transcripts must be syncing into the knowledge base via the connector. If KB search turns up none of your recent meetings, the connection may be down or PDFs may not be admitted — say so and stop; this skill reads what's synced, it doesn't fix the connector.
 - **Vruum MCP** for: `search` (kb + people reads), `get_person_360`, `manage_person` (to log the meeting as a `meeting`-kind interaction), `manage_tasks`, `get_tasks`.
+
+**Check the session's actual tools before proposing execution.** The backend may
+implement a tool without advertising it to the harness. If either task tool is
+unavailable, explain that meeting-to-task execution is blocked; prepare a
+reviewable proposal only. Do not log the meeting first and then discover that its
+approved tasks cannot be written. Drive connection health proves neither tool
+availability nor automatic contact linking/task creation: those are this reviewed
+workflow's separate steps.
 
 ### Step 1 — Establish the recency window, then find NEW transcripts
 
@@ -28,17 +36,24 @@ This is an analyst's job, not a batch import. The attribution step (which person
    - **Set** → the window is everything *after* that date.
    - **`null`** (no meeting logged yet — first run) → **ask the operator for a seed date** ("Ingest meetings since when? (default: last 30 days)"). Never silently default to the whole archive.
 
-2. **Find candidates — deterministic recency listing, NOT a keyword search.** `search` type=kb with `filters={doc_type: "connector", modified_after: "<watermark or seed date, ISO-8601>", include_content: false}` and **no `query`**. This returns every synced connector document modified after the watermark, newest first (up to 100). Connector results carry `source_kind='connector'`, the meeting date in `modified_at`, a Drive `url`, and predictable filename shapes:
+2. **Find candidates — deterministic recency listing, NOT a keyword search.** `search` type=kb with `filters={doc_type: "connector", modified_after: "<watermark or seed date, ISO-8601>", include_content: false}` and **no `query`**. This lists synced connector documents modified after the watermark, newest first (up to 100). Connector results carry `source_kind='connector'`, the Drive modification time in `modified_at` (not the meeting date), a Drive `url`, and often these filename shapes:
    - **Gemini:** `… - Notes by Gemini`, `… - Transcript`, `… - Live Notes`
    - **Read.ai:** `… - Read Meeting Report`, `… Smart Notes`
 
    > **Never use a keyword query for this step.** A query (e.g. "meeting notes transcript live notes") is a relevance-ranked top-N sample over the whole archive — on a Drive with years of old transcripts, recent meetings routinely fall below the relevance cutoff and the run wrongly concludes there is nothing new. Keyword search is fine later for looking things up; candidate discovery must be the `modified_after` listing.
 
-3. **Keep only the meeting artifacts.** The listing is every synced doc in the window, so drop non-meeting files (specs, sheets, decks) by the filename shapes above and obvious content. The Drive's historical archive is intentionally left KB-searchable-only, NOT re-ingested into the CRM. Logging an old meeting (and minting "follow up next week" tasks from a meeting that happened a year ago) is noise.
+3. **Keep only the meeting artifacts.** The filename shapes above are clues, not an allowlist. Exported notes can use a plain `YYYY-MM-DD - <meeting title>` name with no provider suffix. Inspect the summary and, when unclear, read the document before excluding it; meeting time, attendees and substantive discussion identify a meeting more reliably than its filename. Drop obvious non-meeting files (specs, sheets, decks). The Drive's historical archive is intentionally left KB-searchable-only, NOT re-ingested into the CRM. Logging an old meeting (and minting "follow up next week" tasks from a meeting that happened a year ago) is noise.
 
    > **The window field is Drive *modified* time, not the meeting time.** They usually track each other, but an OLD transcript someone re-edits re-enters the window looking "new" — check the meeting date in the title/content, and the Step 5 idempotency marker catches anything already logged. If the listing returns exactly 100 documents, the window overflowed and the OLDEST part was cut (results are newest-first) — tell the user and pull the remainder via the Drive MCP alternative below; a narrower window can NOT recover it (the filter is a lower bound only).
 
-4. Present the surviving candidates as a short list: `name · meeting date · one-line summary`. **If none are newer than the watermark, say so and stop** — there are no new meetings to ingest.
+4. Present the surviving candidates as a short list: `name · meeting date · one-line summary`. **If none are newer than the watermark, say so and stop** — no new candidates were found in the inspected window. This is not a claim about uninspected history.
+
+   A failed or timed-out listing is **unknown coverage**, never an empty result.
+   Report the failing read and stop discovery; do not substitute a keyword sample
+   and claim completeness. The latest logged meeting is only a recency hint,
+   not a completed-import checkpoint: skipped/failed older meetings and late
+   arrivals can remain behind it. Any recovery or historical pass needs an
+   explicitly agreed window and a per-document completion ledger.
 
 > **One meeting, one record.** Gemini + Read.ai often produce 3-4 artifacts per meeting (`- Transcript`, `- Live Notes`, `Read Meeting Report`, `- Chat`). Pick the single richest one (usually `- Transcript` or `Notes by Gemini`) and ingest that — don't log the same meeting multiple times.
 
@@ -47,6 +62,13 @@ This is an analyst's job, not a batch import. The attribution step (which person
 ### Step 2 — Read each chosen transcript in full
 
 `search` type=kb with `filters={document_id: "<doc_id>", include_content: true}` returns the full document text. You need the whole transcript (attendees + the discussion), not a search snippet.
+
+Check `truncated` and the actual content. A Read Meeting Report link, attendee
+list, empty "Your Notes"/"Live Notes" template or "Recent Turn: ..." placeholder
+is not a transcript. Mark it source-incomplete and request the substantive
+artifact; do not infer action items from its title. If `truncated=true`, obtain
+the complete source through an already-authorized read path or report the read
+limit before extracting a supposedly complete action list.
 
 ### Step 3 — Resolve the entity (the careful step)
 
@@ -75,7 +97,12 @@ Per transcript, show the user the complete proposal before writing anything:
 - **Meeting:** the recap + meeting date.
 - **Tasks:** the action-item list.
 
-**Idempotency check (do this before writing):** confirm the transcript isn't already logged — in `get_person_360` for the resolved person, scan recent **meeting** activity for the marker `[vruum-meeting:<doc_id>]`. If it's there, this transcript was already ingested → skip it (don't re-log, don't re-create tasks). The marker must lead the summary (see Step 6) because `get_person_360` truncates each activity description to ~200 chars — a marker buried at the end is cut off and the scan misses it.
+**Idempotency check (do this before writing):** in `get_person_360` for the resolved person, scan recent **meeting** activity for the marker `[vruum-meeting:<doc_id>]`. If present, skip the meeting write. That marker does **not** prove its tasks succeeded: a run can fail after logging the meeting. Resume task writes only from the saved, approved task list with the same external IDs and original numbering; the task service returns an existing task on a sequential retry. If that proposal or its write receipts are missing, report the partial state for review instead of inventing a new task list. The marker must lead the summary because `get_person_360` truncates each activity description to ~200 chars.
+
+The recent activity view is bounded. Absence there is not proof that an old
+meeting was never logged. Historical reconciliation needs an exhaustive,
+tenant-scoped marker check before writes. Run one writer at a time: the meeting
+marker is a workflow check, not a database uniqueness constraint.
 
 The user **approves / edits / drops individual tasks / drops the whole transcript**. Only what they approve gets written.
 
@@ -87,7 +114,7 @@ For each approved transcript:
    - `person_id` = the resolved person
    - `interaction_kind` = `"meeting"`
    - `direction` = `"outbound"` (or `"inbound"` if the prospect convened it)
-   - `occurred_at` = the meeting date as ISO-8601 (from the transcript title/text; fall back to the KB doc's date)
+   - `occurred_at` = the meeting date as ISO-8601 from the transcript title/text, with its timezone resolved. If missing, ask; Drive modification time can be a later edit/export and must not silently become the meeting date.
    - `deal_id` = the resolved deal (omit if none)
    - `summary` =
      ```
@@ -96,21 +123,21 @@ For each approved transcript:
      Attendees: <names / emails>
      Source: <transcript filename> (Google Drive)
      ```
-     The `[vruum-meeting:<doc_id>]` marker is what makes re-runs idempotent (Step 5 scans for it). It **must be the very first thing in the summary** — `get_person_360` truncates the activity description to ~200 chars, so a marker placed at the end is cut off and the dedup scan silently fails (re-runs would create duplicate meetings). Keep it verbatim, at the front.
+     The `[vruum-meeting:<doc_id>]` marker lets Step 5 detect a previously logged transcript within the returned activity history. It **must be the very first thing in the summary** — `get_person_360` truncates the activity description to ~200 chars, so a marker placed at the end is cut off and the duplicate check fails. Keep it verbatim, at the front.
 2. **Name the meeting's purpose** — pass `purpose` on the `manage_person` interaction (step 1) when the transcript makes it clear: discovery, demo, proposal, negotiation, commit, kickoff, impact_review, renewal, expansion, winback, internal, other. A purpose you got wrong is corrected later with `manage_person` action=set_meeting_purpose (id = `li:<interaction id>` for a logged meeting, or the meeting id; payload={purpose}) — it moves the held event to the right practice. The held meeting's timeline event under its practice (`discovery_held`, `kickoff_held`, `impact_review_held`, …) is written by the backend from the purpose; you do NOT call `manage_account` action=record_impact for the meeting itself — a held meeting is not impact. Record impact only when the transcript states a RESULT the customer got (a value in a unit): then `manage_account` action=record_impact with a post-commit practice (onboarding | adoption | expansion), its event type, `value_delivered_numeric` and `value_delivered_unit`.
 3. **Create each approved task** — `manage_tasks` action=create with:
    - `title` (the action item), `person_id` (+ `deal_id` if there is one)
    - `priority`, and `due_at` as ISO-8601 **only if** a date was actually parseable (omit otherwise)
    - `assigned_to` = the rep running this (leave to self; only assign a teammate if you know their Vruum user id)
-   - `external_id` = `transcript:<doc_id>:task:<n>` — the backend dedups on this, so re-running never duplicates a task.
+   - `external_id` = `transcript:<doc_id>:task:<n>` — keep the approved list's original numbering, including gaps for dropped tasks. Save the approved proposal and each successful task ID before continuing. Retry the same IDs sequentially; never renumber or re-extract the task list during partial recovery.
 
 ### Step 7 — Confirm
 
-Report concisely: **N meetings logged, M tasks created**, and anything **skipped** (already-logged, or unresolved). Note that the tasks will now surface in `get_daily_briefing` (tasks due) and on each person's timeline (`get_person_360`). For any **unresolved** transcripts, list them so the user can create the people and re-run.
+Report concisely: **N meetings logged, M tasks created**, and anything **skipped** (already-logged, or unresolved). Distinguish reused tasks from newly created ones and report partial failures, unavailable tools, incomplete source text and discovery limits. Note that successfully created tasks will surface in `get_daily_briefing` (tasks due) and on each person's timeline (`get_person_360`). For any **unresolved** transcripts, list them so the user can create the people and re-run.
 
 ## Guardrails
 
 - **Never attach on an ambiguous or missing match** — ask. Mis-attribution is worse than no attribution.
 - **Never invent action items** — only commitments actually stated in the meeting.
 - **You approve every write.** Nothing is committed without the Step 5 sign-off.
-- **Safe to re-run.** Tasks dedup on `external_id`; meetings dedup on the `[vruum-meeting:<doc_id>]` summary marker. Running this twice on the same Drive is a no-op for already-ingested meetings.
+- **Reconcile before re-running.** Tasks dedup on stable `external_id` values; meeting checks use the `[vruum-meeting:<doc_id>]` summary marker. Multiple artifacts for one meeting, truncated activity history and partial task failures require explicit reconciliation. Do not promise an unconditional no-op.
