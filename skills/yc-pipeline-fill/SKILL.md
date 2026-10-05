@@ -4,7 +4,8 @@ description: >-
   YC harness source for /pipeline-fill. Scrapes YC's public Algolia index,
   extracts founder LinkedIn URLs, dedups, hands a candidate list to
   /pipeline-fill for deep research and import. Use when: YC pipeline fill,
-  source from YC, fill campaign with YC founders, sales nav dried up, source YC.
+  source from YC, fill an objective with YC founders, sales nav dried up, source
+  YC.
 ---
 # YC Pipeline Fill (harness source)
 

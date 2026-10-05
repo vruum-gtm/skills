@@ -1,6 +1,6 @@
 {
   "name": "vruum",
-  "version": "0.6.70",
+  "version": "0.6.71",
   "description": "Connect your Vruum workspace to review revenue priorities, manage deals, research prospects, and prepare outreach through guided skills and authenticated MCP tools.",
   "author": {
     "name": "Vruum",
@@ -31,7 +31,7 @@
       "Review my stalled deals and recommend the next action for each.",
       "Review my outreach drafts and suggest improvements before I approve them."
     ],
-    "brandColor": "#3B82F6",
+    "brandColor": "#0089EE",
     "composerIcon": "./assets/logo.svg",
     "logo": "./assets/logo.svg"
   }

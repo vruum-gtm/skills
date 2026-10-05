@@ -1,9 +1,9 @@
 ---
 name: objective-doctor
 description: >-
-  Diagnose and fix struggling outreach campaigns. Use when: fix a campaign,
-  diagnose campaign, why is my campaign not working, campaign health, low reply
-  rate, check campaigns, which campaigns need help.
+  Diagnose and fix struggling outreach objectives. Use when: fix an objective,
+  diagnose a campaign, why is my objective not working, objective health, low
+  reply rate, check my objectives or campaigns, which objectives need help.
 ---
 # Objective Doctor
 

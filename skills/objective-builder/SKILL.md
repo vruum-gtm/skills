@@ -1,11 +1,11 @@
 ---
 name: objective-builder
 description: >-
-  Build and launch an outreach campaign from criteria in about five prompts:
+  Build and launch an outreach objective from criteria in about five prompts:
   filter contacts by size, industry, persona, region, or list; preview the
-  cohort; create the campaign (optionally cloning messaging from an existing
-  one); assign people; review and launch. Use when: create a campaign, build a
-  campaign, new campaign from criteria, campaign from my list.
+  cohort; create the objective (optionally cloning messaging from an existing
+  one); assign people; review and launch. Use when: create an objective, build a
+  campaign, new objective from criteria, objective or campaign from my list.
 ---
 # Objective Builder
 

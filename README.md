@@ -2,6 +2,8 @@
 
 Vruum AI skills for Claude Code, Codex CLI, and any AI assistant with a skill directory.
 
+Vruum is a revenue operating system. It researches prospects, runs outreach objectives across email and LinkedIn, triages replies, and tracks deals and revenue. Outreach drafts wait for your approval before they send. These skills need a Vruum account ([vruum.ai](https://vruum.ai)).
+
 Once installed, run `/vruum-guide` in your harness — it takes you from an empty account to your first reviewed outreach draft, then keeps recommending the next most valuable action.
 
 Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `skill` tool (action=invoke to run a skill, action=publish to publish one), with `search` type=skills and `fetch` type=skill for discovery, so any connected client can run these skills. This package installs Vruum-shipped skills into the standard skill directories used by Claude Code, Codex CLI, and other compatible harnesses.
@@ -14,7 +16,17 @@ debugging, and the convenience `vruum init` command.
 
 ### Claude Code
 
-Add to `~/.claude.json`:
+**Plugin (recommended)** — bundles the skills + Vruum MCP in one step. Vruum is
+listed in the Claude Directory, or add this repository as a marketplace:
+
+```text
+/plugin marketplace add vruum-gtm/skills
+/plugin install vruum@vruum-gtm
+```
+
+Then run `/mcp` to sign in to Vruum (OAuth).
+
+**Manual** — add the MCP server to `~/.claude.json`:
 
 ```json
 {
@@ -24,8 +36,7 @@ Add to `~/.claude.json`:
 }
 ```
 
-Install through the Claude Code plugin / marketplace when available. Otherwise
-install the skills directly:
+Then install the skills directly:
 
 ```sh
 npx --yes @vruum/skills@latest install
@@ -59,7 +70,7 @@ npx --yes @vruum/skills@latest install --target /path/to/skills/dir   # any othe
 
 ### Cursor / VS Code Copilot / Cline
 
-Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). The `skill` tool (action=invoke) becomes available; to also install the skill files locally, use this npm package's `install --target` below.
+Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). The `skill` tool (action=invoke) becomes available; to also install the skill files locally, use the `install --target` command under **Other local harnesses without plugin support**.
 
 ### Claude Desktop / Claude.ai (Cowork)
 
@@ -83,19 +94,19 @@ install skills into ChatGPT.
 npx --yes @vruum/skills@latest install --target /path/to/skills/dir
 ```
 
-## Coexisting with operator skills
+## Coexisting with a Vruum-managed bundle
 
-The public and operator skill bundles can coexist in the same harness. For
-overlapping skill names, a valid operator-owned installation takes precedence.
-Public installs and uninstalls preserve the operator bundle's links and update
-checker. If an operator link becomes stale, the next public install restores
-the public skill instead of leaving a broken link.
+Some accounts also have a second, Vruum-managed skill bundle in the same
+harness. For overlapping skill names, a valid managed installation takes
+precedence. Installing or uninstalling this package preserves the managed
+bundle's links and update checker. If a managed link becomes stale, the next
+install restores the public skill instead of leaving a broken link.
 
 ## Skills
 
 <!-- generated:skills-begin -->
-- `/objective-builder` — Build and launch an outreach campaign from criteria in about five prompts: filter contacts by size, industry, persona, region, or list; preview the cohort; create the campaign (optionally cloning messaging from an existing one); assign people; review and launch. Use when: create a campaign, build a campaign, new campaign from criteria, campaign from my list.
-- `/objective-doctor` — Diagnose and fix struggling outreach campaigns. Use when: fix a campaign, diagnose campaign, why is my campaign not working, campaign health, low reply rate, check campaigns, which campaigns need help.
+- `/objective-builder` — Build and launch an outreach objective from criteria in about five prompts: filter contacts by size, industry, persona, region, or list; preview the cohort; create the objective (optionally cloning messaging from an existing one); assign people; review and launch. Use when: create an objective, build a campaign, new objective from criteria, objective or campaign from my list.
+- `/objective-doctor` — Diagnose and fix struggling outreach objectives. Use when: fix an objective, diagnose a campaign, why is my objective not working, objective health, low reply rate, check my objectives or campaigns, which objectives need help.
 - `/create-content` — Co-produce an on-voice LinkedIn content post — pull your own signal, steer the angle conversationally, draft in your voice, then save as draft, schedule, or publish. Use when: write a post, draft LinkedIn content, create content, post about, content co-production, help me write a post.
 - `/csv-pipeline-fill` — CSV harness source for /pipeline-fill. Reads a CSV, auto-detects headers, maps columns, hands off to /pipeline-fill for harness deep research and import. Use when: import CSV, paste a CSV, csv import, prospect list from CSV, csv harness mode.
 - `/deal-triage` — Triage your active deal pipeline. Flags at-risk deals, surfaces stalled-deal alerts, runs MEDDIC qualification, and recommends next actions. Use when: review deals, triage deals, check pipeline, deal review, morning deals, pipeline review, deal health, at-risk deals.
@@ -106,12 +117,12 @@ the public skill instead of leaving a broken link.
 - `/expansion-fill` — Source expansion-ready customers for outreach. Finds closed-won customers >60 days old with no open follow-on deal and surfaces them for an expansion play. Use when: expand customer, find upsell opportunities, NRR play, expansion opportunities, customers ripe for expansion, who can we expand to.
 - `/ingest-meetings` — Pull meeting transcripts from your connected Google Drive into Vruum. Attaches each transcript to the right person and deal as a meeting on their timeline, and turns its action items into tasks that surface in your daily briefing. You review every attach before anything is written; safe to re-run. Use when: ingest meetings, import meeting notes, pull transcripts, log my meetings, action items from meetings, Gemini notes, Read.ai transcripts, turn meetings into tasks.
 - `/outreach-triage` — Review and approve your pending outreach drafts across LinkedIn and email. Use when: triage, review queue, morning review, check messages, approve outreach, what needs review.
-- `/pipeline-fill` — Source-agnostic pipeline orchestrator. Picks a source per campaign (Sales Nav / YC / CSV / account list / discovery), runs harness deep research, applies a pre-filter gate, then saves into the campaign via the backend authoritative match_score>=70 gate. Use when: fill pipeline, import prospects, daily imports, need more prospects, discover prospects from scratch, find buyers at these companies, deep research before import.
+- `/pipeline-fill` — Source-agnostic pipeline orchestrator. Picks a source per objective (Sales Nav / YC / CSV / account list / discovery), runs harness deep research, applies a pre-filter gate, then saves into the objective through Vruum's server-side fit gate. Use when: fill pipeline, import prospects, daily imports, need more prospects, discover prospects from scratch, find buyers at these companies, deep research before import.
 - `/sales-nav-deep-fill` — Sales Nav harness source for /pipeline-fill. Pre-filters Sales Nav profiles via vruum-pipeline-filter, produces a candidate list, hands off to /pipeline-fill for deep research and import. Use when: sales nav with deep research, sales nav harness mode, in-chat sales nav.
 - `/vruum-guide` — Guide to running Vruum from your own AI harness. First run: guided onboarding from empty account to first reviewed outreach draft. After: reads live account state, recommends the single next most valuable action, hands off to the right skill. Use when: get started, onboarding, how do I use vruum, what should I do next, where do I start.
 - `/vruum-skills-upgrade` — Upgrade @vruum/skills to the latest npm version and re-sync ~/.vruum/. Use when the user explicitly asks: upgrade vruum skills, update vruum, or pull latest vruum skills. A passive update notice does not invoke this skill.
 - `/winback-fill` — Source winback candidates from closed-lost deals or churned customers. Surfaces people who went silent or lost a deal >90 days ago, where the loss reason wasn't 'no_fit'. Use when: winback, win back churned, reactivate, revive cold deals, 90-day silent revival, lost deal recovery, lost customer outreach.
-- `/yc-pipeline-fill` — YC harness source for /pipeline-fill. Scrapes YC's public Algolia index, extracts founder LinkedIn URLs, dedups, hands a candidate list to /pipeline-fill for deep research and import. Use when: YC pipeline fill, source from YC, fill campaign with YC founders, sales nav dried up, source YC.
+- `/yc-pipeline-fill` — YC harness source for /pipeline-fill. Scrapes YC's public Algolia index, extracts founder LinkedIn URLs, dedups, hands a candidate list to /pipeline-fill for deep research and import. Use when: YC pipeline fill, source from YC, fill an objective with YC founders, sales nav dried up, source YC.
 <!-- generated:skills-end -->
 
 ## Upgrade

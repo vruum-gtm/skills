@@ -1,12 +1,12 @@
 ---
 name: pipeline-fill
 description: >-
-  Source-agnostic pipeline orchestrator. Picks a source per campaign (Sales Nav
+  Source-agnostic pipeline orchestrator. Picks a source per objective (Sales Nav
   / YC / CSV / account list / discovery), runs harness deep research, applies a
-  pre-filter gate, then saves into the campaign via the backend authoritative
-  match_score>=70 gate. Use when: fill pipeline, import prospects, daily
-  imports, need more prospects, discover prospects from scratch, find buyers at
-  these companies, deep research before import.
+  pre-filter gate, then saves into the objective through Vruum's server-side fit
+  gate. Use when: fill pipeline, import prospects, daily imports, need more
+  prospects, discover prospects from scratch, find buyers at these companies,
+  deep research before import.
 ---
 # Pipeline Fill
 
