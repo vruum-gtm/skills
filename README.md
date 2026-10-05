@@ -6,7 +6,7 @@ Vruum is a revenue operating system. It researches prospects, runs outreach obje
 
 Once installed, run `/vruum-guide` in your harness — it takes you from an empty account to your first reviewed outreach draft, then keeps recommending the next most valuable action.
 
-Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server exposes the `skill` tool (action=invoke to run a skill, action=publish to publish one), with `search` type=skills and `fetch` type=skill for discovery, so any connected client can run these skills. This package installs Vruum-shipped skills into the standard skill directories used by Claude Code, Codex CLI, and other compatible harnesses.
+Pairs with the Vruum MCP server at [https://api.vruum.ai/mcp](https://api.vruum.ai/mcp). The MCP server lists saved team skills with `search` type=skills, reads one with `fetch` type=skill, and publishes one with the `skill` tool (action=publish). This package installs Vruum-shipped skills into the standard skill directories used by Claude Code, Codex CLI, and other compatible harnesses.
 
 You do not need `@vruum/cli` to use Vruum. Connect the Vruum MCP and install
 this skills package; the CLI is optional for local files, scripting, CI, auth
@@ -70,7 +70,7 @@ npx --yes @vruum/skills@latest install --target /path/to/skills/dir   # any othe
 
 ### Cursor / VS Code Copilot / Cline
 
-Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). The `skill` tool (action=invoke) becomes available; to also install the skill files locally, use the `install --target` command under **Other local harnesses without plugin support**.
+Register the MCP server via your editor's MCP setup (each one has its own UI / config path). Connect to `https://api.vruum.ai/mcp` (HTTP, OAuth via standard MCP flow). Saved team skills become readable with `fetch` type=skill; to also install the skill files locally, use the `install --target` command under **Other local harnesses without plugin support**.
 
 ### Claude Desktop / Claude.ai (Cowork)
 

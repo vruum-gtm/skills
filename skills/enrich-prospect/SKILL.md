@@ -20,7 +20,7 @@ Call these in parallel:
 - `fetch` type=company_research — company intelligence
 
 If the selected objective has missing, stale, or conflicting research facts:
-- `research` action=linkedin_fetch — pull their recent posts and profile
+- `research_lookup` action=linkedin_fetch — pull their recent posts and profile
 - WebSearch for "[person name] [company name]" — recent news, talks, publications
 - `search` type=kb — relevant sales docs
 

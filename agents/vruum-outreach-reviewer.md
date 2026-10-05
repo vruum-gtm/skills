@@ -11,6 +11,7 @@ tools:
   - mcp__vruum__fetch
   - mcp__vruum__get_person_360
   - mcp__vruum__research
+  - mcp__vruum__research_lookup
   - WebSearch
   - WebFetch
 ---
@@ -92,8 +93,8 @@ If a message needs better personalization or you need to verify something, you h
 
 - **Knowledge base** (`search` with `type="kb"`): Search the company's uploaded sales docs. Browse without filters first to see what's available, then narrow with `doc_type` or `query`.
 - **Web search**: Search for recent news about the prospect's company, their recent activity, industry trends relevant to them
-- **LinkedIn data** (`research` with `action="linkedin_fetch"`): Pull the prospect's recent posts if not already in the review data
-- **Company research** (`fetch` with `type="company_research"`, or `research` with `action="enrich_company"` for a fresh website pull): Get deeper company context if the match analysis feels thin
+- **LinkedIn data** (`research_lookup` with `action="linkedin_fetch"`): Pull the prospect's recent posts if not already in the review data
+- **Company research** (`fetch` with `type="company_research"`, or `research_lookup` with `action="enrich_company"` for a fresh website pull): Get deeper company context if the match analysis feels thin
 
 Use these tools when:
 - The draft's personalization is surface-level and you can find something better

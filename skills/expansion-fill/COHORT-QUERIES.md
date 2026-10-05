@@ -66,11 +66,11 @@ Per-account features the skill computes from `get_person_360` +
   (`dormant`, `churned`)
 - Most recent `practice='adoption'` activity in last 60d — engagement signal
 - Recent touch sent + reply received → champion present
-- New hire signals on company LinkedIn (via `research` action=linkedin_fetch)
+- New hire signals on company LinkedIn (via `research_lookup` action=linkedin_fetch)
   — fresh stakeholder = hook
-- New dept created (via `research` action=linkedin_fetch) — multi-team
+- New dept created (via `research_lookup` action=linkedin_fetch) — multi-team
   expansion play
-- Recent product/news events (via `research` action=enrich_company or saved
+- Recent product/news events (via `research_lookup` action=enrich_company or saved
   research) — timing hook
 
 ## Hook generation

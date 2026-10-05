@@ -37,7 +37,7 @@ All harness source skills produce candidate lists matching this shape exactly. T
 - Company anchors are additive during sourcing/research: preserve every trustworthy `company_id`, `company_domain`, `company_website`, and `company_linkedin_url` through the handoff. A company name is useful research input but is **not** a strong identity anchor.
 - A candidate may enter research without a strong company anchor because Phase B can recover one from the current LinkedIn work-experience record. It may **not** enter a save call without one; Step 7's company-binding invariant is absolute.
 - **A company-only row (name/domain but no person) is not a valid candidate.** Sources holding companies must run the shared **Committee resolution** step in `SKILL.md` (companies → people, capped at `buyers_per_account`) before handing off to this engine. Do not improvise buyer selection out of company-research prose — that reintroduces marquee-name skew and an undocumented depth of 1 per account.
-- `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
+- `full_name` is a convenience for sources that don't pre-split. Engine's Step 7 splits via last-space heuristic (`Jane van der Merwe` → first=`Jane`, last=`van der Merwe`). Multi-token surnames like `Maria Del Carmen Garcia` may split imperfectly — Phase B's linkedin_fetch call (`research_lookup` action=linkedin_fetch) returns canonical first/last when `linkedin_url` is present and overrides the heuristic.
 - Field additions are additive only. Removing a field is a breaking change for source skills.
 - `source_policy`, candidate examples, and progress events have executable schemas under `contracts/`. Validate handoffs against them before provider calls.
 
@@ -121,7 +121,7 @@ Per objective's candidate list:
 
 ## Step 4 — Phase A: company research
 
-**Concurrency cap: 10 parallel.** Phase A subagents don't call `research` with action=linkedin_fetch — they hit `fetch` (type=company_research), `research` (action=enrich_company), `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
+**Concurrency cap: 10 parallel.** Phase A subagents don't call `research_lookup` with action=linkedin_fetch — they hit `fetch` (type=company_research), `research_lookup` (action=enrich_company), `WebFetch`, `WebSearch`. No Unipile rate-limit pressure.
 
 Dispatch one `vruum-company-deep-researcher` per unique company. Subagent file at `.claude/agents/vruum-company-deep-researcher.md` defines the workflow + tools. Include the reusable fixed-field values and their evidence in the prompt; the researcher must still compute objective-relative outputs.
 
@@ -156,7 +156,7 @@ Helps operators distinguish "still working" from "stuck."
 
 ## Step 5 — Phase B: prospect research
 
-**Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `research` action=linkedin_fetch and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
+**Concurrency cap: 5 parallel** (lowered from Phase A's 10 because Phase B subagents call `research_lookup` action=linkedin_fetch and the Unipile rate limiter throws over cap — see `backend/app/domains/channels/services/unipile/rate_limiter.py:36`. Lower concurrency keeps us under the per-account window.)
 
 **Malformed LinkedIn fallback:** if the selected candidate already has a Vruum `person_id` and LinkedIn returns an invalid/malformed-profile result, preserve that `person_id` and retry the enrichment once through the first allowed structured provider in `source_policy` (Clay when selected/connected). Pass the same `person_id` in the PAYLOAD to `research(action="save_person", payload={person_id: ..., ...})` — update-only; never as the facade `id` argument. This is a provider fallback for one identity, not a new-person discovery. Never fall back on LinkedIn 429/rate-limit responses or timeouts; surface those for a later retry. If the fallback's email or LinkedIn URL belongs to another person, the backend returns `person_identity_conflict`; stop and surface it rather than dropping `person_id` and creating a duplicate.
 

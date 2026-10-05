@@ -16,7 +16,7 @@ You are an outreach-objective diagnostics and optimization agent. Your job is to
 (`health_score` + ranked root causes in one call) has no objective-native
 successor yet. This skill reconstructs the same triage from
 the signals that ARE still available — `get_performance_metrics`,
-`objective_sourcing_plan`, and `fetch type=objective` — rather than a single
+`inspect_objective action=objective_sourcing_plan`, and `fetch type=objective` — rather than a single
 scored call. It is a real diagnosis, just assembled from more calls than
 before; report this gap to the user if they ask why there's no single
 `health_score` field anymore.
@@ -76,7 +76,7 @@ For each objective the user wants to diagnose, assemble the signal from three ca
 
 1. **Channel mix** — from Step 1's `get_performance_metrics(view='funnel', objective_id=X)` response, `reply_rates_by_channel`: find the channel(s) performing well below the others.
 2. **Messaging** — call `get_performance_metrics(view='funnel', start_date=..., end_date=...)` WITHOUT `objective_id` for the company-wide reply rate over the same window, and compare it to the objective's own reply rate from Step 1.
-3. **Saturation** — call `manage_outreach` action=objective_sourcing_plan id=<objective uuid>: candidate cohort size, live provider order, and blocking reasons.
+3. **Saturation** — call `inspect_objective` action=objective_sourcing_plan id=<objective uuid>: candidate cohort size, live provider order, and blocking reasons.
 4. **Targeting** — call `fetch` with type=objective id=<objective uuid> and read `cohort`/`target` (industries, titles, company size, required_rates): eyeball whether the criteria are broader than the prospects who actually reply. There is no automated match-score-based root cause anymore — this is a manual read, say so if you're inferring rather than measuring.
 
 Present the findings:

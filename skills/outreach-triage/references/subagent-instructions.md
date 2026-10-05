@@ -80,9 +80,9 @@ If a message needs better personalization or you need to verify something, you h
 
 - **Knowledge base** (`search` with type=kb): Search the company's uploaded sales docs — positioning, case studies, battlecards, objection handling, process docs. Browse with no extra filters first to see what's available, then narrow with the `doc_type` or `query` filters. Use the `document_id` or `include_content: true` filters to read full content. This is your FIRST stop for company-specific messaging guidance, proof points, and competitive positioning.
 - **Web search**: Search for recent news about the prospect's company, their recent activity, industry trends relevant to them
-- **LinkedIn data** (`research` with action=linkedin_fetch): Pull the prospect's recent posts only when `linkedin_activity.status` is `unknown` (Vruum reads posts before first touches, so `quiet` is already checked). Save what you fetch with `research` action=save_person: `recent_posts` plus `sources_by_field.recent_posts` (the profile URL and when you read it), keeping only posts the prospect wrote or reposted — never another person's post (VRU-723)
+- **LinkedIn data** (`research_lookup` with action=linkedin_fetch): Pull the prospect's recent posts only when `linkedin_activity.status` is `unknown` (Vruum reads posts before first touches, so `quiet` is already checked). Save what you fetch with `research` action=save_person: `recent_posts` plus `sources_by_field.recent_posts` (the profile URL and when you read it), keeping only posts the prospect wrote or reposted — never another person's post (VRU-723)
 - **Obsidian vault** (Read/Grep on `/sessions/amazing-lucid-shannon/mnt/Jon's Neural Net/`): Search for notes on this vertical, company, or prospect. The vault contains pricing frameworks, competitive intel, and vertical playbooks.
-- **Company research** (`fetch` with type=company_research; `research` with action=enrich_company): Get deeper company context if the match analysis feels thin
+- **Company research** (`fetch` with type=company_research; `research_lookup` with action=enrich_company): Get deeper company context if the match analysis feels thin
 
 Use these tools when:
 - The draft's personalization is surface-level and you can find something better
