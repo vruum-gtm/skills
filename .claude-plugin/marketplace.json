@@ -1,23 +1,10 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "vruum-gtm",
-  "owner": {
-    "name": "Vruum AI",
-    "url": "https://vruum.ai"
-  },
+  "owner": { "name": "Vruum AI", "url": "https://vruum.ai" },
   "metadata": {
-    "description": "Vruum AI skills + remote MCP server for B2B GTM teams running cold outreach and pipeline operations"
+    "description": "Vruum AI skills + remote MCP server for B2B GTM teams"
   },
   "plugins": [
-    {
-      "name": "vruum",
-      "source": {
-        "source": "npm",
-        "package": "@vruum/skills"
-      },
-      "description": "Vruum AI skills with one-click connection to the Vruum MCP server. Content is pulled from @vruum/skills on npm; every npm publish flows to this marketplace automatically.",
-      "homepage": "https://vruum.ai",
-      "category": "productivity"
-    }
+    { "name": "vruum", "source": "./", "category": "productivity" }
   ]
 }
