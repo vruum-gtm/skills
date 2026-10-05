@@ -17,15 +17,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Verify manifests are valid JSON
+      # The Claude Directory installs the repository root as the plugin, so
+      # the root must ship the MCP connector, skills, and agents itself.
+      - name: Verify the repository root is the whole plugin
         run: |
-          node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8'))"
-          node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/plugin.json','utf8'))"
-
-      - name: Verify marketplace references a resolvable plugin source
-        run: |
-          # The plugin now lives on npm. Confirm the source field points at a
-          # real npm package and the package is resolvable.
-          PKG=$(node -pe "JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8')).plugins[0].source.package")
-          echo "marketplace points at npm package: $PKG"
-          npm view "$PKG" version
+          node -e '
+            const fs = require("fs")
+            const read = (path) => JSON.parse(fs.readFileSync(path, "utf8"))
+            const claude = read(".claude-plugin/plugin.json")
+            read(".codex-plugin/plugin.json")
+            const mcp = read(".mcp.json")
+            if (!mcp.mcpServers || !mcp.mcpServers.vruum) throw new Error(".mcp.json has no vruum server")
+            const claudeMarket = read(".claude-plugin/marketplace.json")
+            if (claudeMarket.plugins[0].source !== "./") throw new Error("the Claude marketplace must point at the root plugin")
+            const codexMarket = read(".agents/plugins/marketplace.json")
+            if (codexMarket.plugins[0].source.path !== "./") throw new Error("the Codex marketplace must point at the root plugin")
+            const skills = fs.readdirSync("skills").filter((name) => fs.existsSync(`skills/${name}/SKILL.md`))
+            if (skills.length === 0) throw new Error("the root plugin ships no skills")
+            if (fs.readdirSync("agents").length === 0) throw new Error("the root plugin ships no agents")
+            if (fs.existsSync("plugins")) throw new Error("plugins/ is a stale nested copy")
+            console.log(`root plugin ${claude.version}: ${skills.length} skills`)
+          '
