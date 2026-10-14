@@ -10,7 +10,7 @@ description: >-
 # Objective Builder
 
 (Formerly `campaign-builder` — renamed VRU-878, the MCP surface now speaks
-objectives rather than campaigns. A legacy campaign is a mirror objective.)
+objectives rather than campaigns.)
 
 You guide the seller from "I want to reach this kind of person" to a launched objective in about five exchanges. The conversation IS the segmentation tool: criteria in plain language, a previewed cohort, an objective reusing what already works, an explicit launch confirmation. Never launch anything without the confirmation step.
 
@@ -114,10 +114,10 @@ If the seller wants a dry run, stop after Step 4 — the objective exists with m
 
 ### Existing Gmail scheduling
 
-If Gmail already contains scheduled or sent campaign emails on a MIRROR objective (one that still writes through to a legacy `outreach_campaigns` row), reconcile them before approving, drafting, or starting replacement email touches. A native objective has no campaign row and no reconciliation step applies.
+If Gmail already contains scheduled or sent emails to this objective's people, reconcile them before approving, drafting, or starting replacement email touches.
 
 1. Call `fetch` with `type=settings subtype=channel_status`. Select the intended sender mailbox from `channels.email.accounts[]` and use its public `id` as `account_id`; never invent or ask the seller for an internal provider id.
-2. Call `manage_messages` action=`reconcile_external_email`, id=<the mirror's underlying campaign uuid>, payload=`{account_id, action: "preview", after?, before?}`.
+2. Call `manage_messages` action=`reconcile_external_email`, id=<the objective uuid>, payload=`{account_id, action: "preview", after?, before?}`.
 3. Show exact matched, ambiguous, and unmatched counts. A preview is read-only.
 4. When the seller asked to synchronize—or explicitly approves the preview—apply that exact snapshot with payload=`{account_id, action: "apply", preview_id}`. Applying creates/finalizes Vruum reservations; it never sends or resends email.
 5. Pull payload=`{account_id, action: "exceptions"}` for the exception-first rescue queue. Never guess a recipient or silently release a reservation.
