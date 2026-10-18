@@ -82,11 +82,15 @@ Download and upload via **Settings → Customize → Plugins → "+"**.
 
 ### ChatGPT
 
-Vruum's OpenAI directory submission is in preparation. This package does not
-establish an approved directory listing. Until that listing is available,
-connect `https://api.vruum.ai/mcp` through custom remote MCP where your account
-supports it. The npm installer below requires a local harness; it does not
-install skills into ChatGPT.
+Open the [official Vruum marketplace app](https://chatgpt.com/plugins/plugin_asdk_app_6abc0d085d088191820a73232f0b3189?open_in_app)
+and follow the installation and connection prompts shown there. This is the
+recommended ChatGPT setup; no local npm install or Vruum CLI is needed.
+
+Once connected, ask **What needs my attention in Vruum today?** for a read-only
+first check. The app bundles `vruum-guide`, `deal-triage`, and `outreach-triage`.
+Use the operations available in that app. The broader slash-command catalog in
+this README describes the local package. The npm installer below requires a
+local harness; it does not install skills into ChatGPT.
 
 ### Other local harnesses without plugin support
 
