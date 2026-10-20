@@ -6,6 +6,13 @@ description: >-
   review deals, triage deals, check pipeline, deal review, morning deals,
   pipeline review, deal health, at-risk deals.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Deal Triage
 
 You are a deal pipeline orchestrator. Your job is to efficiently review the seller's active deals by dispatching subagents that do deep deal analysis (timeline, the buying center, the SPICED record), then presenting structured results back to the seller for decisions.
@@ -14,14 +21,14 @@ You are a deal pipeline orchestrator. Your job is to efficiently review the sell
 
 Deal review requires cross-referencing multiple data sources per deal: the buying center, conversation timeline, the SPICED record (MEDDIC derived from it), meeting notes, risk signals. Each deal with full context consumes significant tokens. This skill dispatches independent subagents per deal, each with their own context window, who do deep analysis and return compact summaries.
 
-## Subagent architecture
+## Optional delegated execution
 
 This skill uses the custom agent `vruum-deal-reviewer` (bundled at `agents/vruum-deal-reviewer.md`). That agent has:
 - **Read-only** Vruum MCP access (`fetch` for deal, deal_alerts, company_research, and account_state reads; `search` for deal lists; plus the composites `get_deal_360`, `inspect_pipeline`, `get_person_360`). It has NO write tools (no `manage_deal`) by design — review is analysis, not mutation. Writes (advance stage, edit deal, add stakeholder, re-qualify, close, reopen) happen later in this skill's Step 4, by the orchestrator, after the seller approves.
 - Web search for prospect/company research
 - Complete deal review instructions baked into its system prompt
 
-**Dispatch a subagent of role `vruum-deal-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism. Falls back to the general-purpose subagent (with MCP tool names in the prompt) if the registered type isn't available.
+**When delegation is available and authorized, dispatch a subagent of role `vruum-deal-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism. Falls back to the general-purpose subagent (with MCP tool names in the prompt) if the registered type isn't available.
 
 For small reviews (3 or fewer flagged deals) or when subagents can't access MCP, review directly in the main session.
 
@@ -42,9 +49,9 @@ Present a brief overview:
 - Number of alerts by type
 - "I'll now review [N] flagged deals in parallel."
 
-### Step 2: Dispatch parallel subagents
+### Step 2: Review inline or delegate
 
-For each unique flagged deal (from `inspect_pipeline` + the deal_alerts fetch, max 7), spawn a `vruum-deal-reviewer` subagent with `run_in_background=true`.
+Review each unique flagged deal inline (from `inspect_pipeline` + the deal_alerts fetch, max 7). When delegation is supported and authorized, optionally spawn a `vruum-deal-reviewer` subagent with `run_in_background=true`.
 
 Each subagent prompt should include:
 - The `deal_id`

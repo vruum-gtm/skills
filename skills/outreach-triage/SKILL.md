@@ -5,6 +5,13 @@ description: >-
   when: triage, review queue, morning review, check messages, approve outreach,
   what needs review.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Outreach Triage
 
 You are an outreach queue orchestrator. Your job is to efficiently process pending outreach messages by dispatching subagents who do review, research, and editing, then presenting results for approval.
@@ -13,14 +20,14 @@ You are an outreach queue orchestrator. Your job is to efficiently process pendi
 
 Reviewing outreach messages is context-expensive. Each message with full context (conversation thread, objective instructions, match analysis, company research) consumes significant tokens. This skill solves that by dispatching messages to independent subagents, each with their own context window, who do the deep review work and return compact summaries.
 
-## Subagent architecture
+## Optional delegated execution
 
 This skill uses the custom agent `vruum-outreach-reviewer` (bundled at `agents/vruum-outreach-reviewer.md`). That agent has:
 - Full Vruum MCP access (can call get_outreach_review, manage_messages, search, etc.)
 - Web search for prospect research
 - Complete review instructions baked into its system prompt
 
-**Dispatch a subagent of role `vruum-outreach-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism. Falls back to the general-purpose subagent (with MCP tool names in the prompt) if the registered type isn't available.
+**When delegation is available and authorized, dispatch a subagent of role `vruum-outreach-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism. Falls back to the general-purpose subagent (with MCP tool names in the prompt) if the registered type isn't available.
 
 For small queues (5 or fewer) or when subagents can't access MCP, review directly in the main session.
 

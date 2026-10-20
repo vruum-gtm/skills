@@ -8,6 +8,13 @@ description: >-
   prospects, discover prospects from scratch, find buyers at these companies,
   deep research before import.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Pipeline Fill
 
 You are a source-agnostic pipeline filler. You pick objectives to fill, pick a source per objective (Sales Nav / YC / CSV / account list / discovery), and orchestrate harness deep research that gates against the objective ICP before saving prospects into the backend pipeline.
@@ -30,7 +37,13 @@ When you reach Step 3, **stop and read** `RESEARCH-ENGINE.md`. That doc is the c
 
 ## Subagent architecture
 
-This skill uses two subagents (defined in `.claude/agents/`):
+The canonical procedures are packaged with this skill:
+- [Company research](references/company-research.md) for Phase A.
+- [Person research](references/person-research.md) for Phase B.
+
+Run them inline, or supply those same complete procedures to authorized
+delegates. A delegate does not need a preinstalled local role definition.
+The familiar role labels remain useful for progress reporting:
 - `vruum-company-deep-researcher` — Phase A, one per unique company in the batch (max 10 in parallel)
 - `vruum-prospect-deep-researcher` — Phase B, one per person (max 5 in parallel — Phase B is rate-limited because it calls `research_lookup` action=linkedin_fetch)
 
@@ -188,7 +201,7 @@ Operator gives a brief like "Series A-C SaaS founders, US, 50-500 ppl" or "direc
    - **Structured B2B data / enrichment provider** (Clay, Apollo, ZoomInfo, Crunchbase, People Data Labs, Clearbit, …) — these firmographic-filter companies AND resolve the buying committee directly, and they reach the long tail, which is the entire point of discovery. If one is connected, it is the primary source. With Clay specifically, that's `find-and-enrich-company` (firmographic company pull) + `find-and-enrich-contacts-at-company` (committee). Mind provider credits / rate limits.
    - **Regular LinkedIn** via `research_lookup action=linkedin_people_search` — fine to *resolve people at a company you already found*, but it over-samples well-known names, so never use it as the primary company-discovery channel. Sales Navigator remains available through the separate `sales_nav_*` actions when its structured filters are necessary.
    - **Email finder** — Hunter via `search type=companies {domain, seniority}`, or the provider's own email step — to fill the contact emails Phase B needs.
-   - **Web** (`WebSearch` / `WebFetch`) — always available; the universal fallback and a strong long-tail *company* finder (funding announcements, Crunchbase/PitchBook, vertical directories) even when a data provider is connected.
+   - **Web** (available host search/read tools or the connected web lookup operations) — when available and allowed; the universal fallback and a strong long-tail *company* finder (funding announcements, Crunchbase/PitchBook, vertical directories) even when a data provider is connected.
 
    Apply `source_policy` before inventorying or calling providers. Validate the entire object against `contracts/source-policy.schema.json` before the first provider call. If `selected_source` is disconnected, stop with code `source_unavailable`; exclusive mode never substitutes, while preferred mode may use only the first connected entry in `allowed_fallbacks`. Announce the resolved policy in one line ("Sourcing via Clay — firmographic pull + committee enrichment; web as allowed backup; Sales Nav prohibited") so the operator can redirect.
 3. **Source companies first, by firmographics — aim past the obvious names** — use the chosen tool to pull companies matching the merged ICP by stage / headcount / vertical / geo, NOT by marquee-name lookup (the saturated set IS the famous names). With a data provider, run the firmographic query directly; with web only, work funding announcements + directories.

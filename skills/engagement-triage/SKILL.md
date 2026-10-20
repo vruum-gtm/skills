@@ -6,6 +6,13 @@ description: >-
   warming comments, review nurture reactions, review marketing comments, review
   content drafts, check engagement queue.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 ## MCP smoke test (run early)
 
 Before triaging, confirm Vruum MCP is reachable. Call `fetch` with type=marketing, subtype=overview as a lightweight liveness check. On failure, surface this error and stop:
@@ -28,11 +35,11 @@ The backend no longer writes engagement prose (VRU-570/VRU-671: the harness auth
 
 Reviewing inline burns tokens fast. Subagents with their own context windows do the authoring in parallel and return compact verdicts.
 
-## Subagent: `vruum-engagement-reviewer`
+## Optional reviewer: `vruum-engagement-reviewer`
 
 This skill dispatches the `vruum-engagement-reviewer` subagent (bundled at `agents/vruum-engagement-reviewer.md`). That agent reviews both engagement items AND content posts.
 
-**Dispatch a subagent of role `vruum-engagement-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism.
+**When delegation is available and authorized, dispatch a subagent of role `vruum-engagement-reviewer`** via your runtime's native subagent mechanism (Claude Code's `Agent` tool with `subagent_type`; Codex's equivalent). Supports `run_in_background=true` for parallelism.
 
 Falls back to general-purpose subagent with MCP tool names in the prompt if the subagent type isn't recognized.
 
@@ -73,7 +80,7 @@ Expertise: {target_industries}
 Background: {founder_background}
 ```
 
-### Step 4: Dispatch per queue
+### Step 4: Review each queue inline or delegate
 
 For each queue type the user selected, call the appropriate list endpoint, get IDs + lightweight context (no full content yet), then dispatch subagents.
 

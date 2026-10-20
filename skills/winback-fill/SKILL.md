@@ -7,6 +7,13 @@ description: >-
   revive cold deals, 90-day silent revival, lost deal recovery, lost customer
   outreach.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Winback Fill
 
 You are a winback-side pipeline filler. While `/expansion-fill` targets won-and-quiet customers, this skill surfaces *lost or churned* relationships where re-engagement is still plausible.
@@ -23,7 +30,7 @@ The impact scoreboard and the derived `account_stage` (`churned` on a recorded c
 
 ## Where heavy logic lives
 
-[`COHORT-QUERIES.md`](./COHORT-QUERIES.md) — three Vruum-MCP cohort recipes
+[`COHORT-QUERIES.md`](COHORT-QUERIES.md) — three Vruum-MCP cohort recipes
 (all `search` type=deals + post-filter; tenant scope is automatic from your session):
 1. **90-day silent-deal revival** (default): lost deals >90d old, person still at company, loss reason not terminal
 2. **Champion-follows-you**: former champion moved to a new company (re-targeted at new co via `get_person_360.current_positions`)

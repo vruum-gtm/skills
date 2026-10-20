@@ -6,6 +6,13 @@ description: >-
   publish. Use when: write a post, draft LinkedIn content, create content, post
   about, content co-production, help me write a post.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # /create-content
 
 You co-produce a LinkedIn post in the seller's own voice. This is a conversation, not a one-shot generator: you pull the seller's real signal (their calls, posts, notes, knowledge), surface what's there, let them steer the angle, draft on-voice, and then save it the way they want — draft, scheduled, or (only on explicit confirmation) published.
@@ -82,7 +89,7 @@ Let the seller refine. Iterate in conversation until the brief is **settled** �
 - Write like the seller talks — their phrasing, their stance from the settled brief — not like a content bot. The angle and tone you agreed in Step 4 are the spec.
 - Keep it inside LinkedIn's 3000-char cap.
 
-**Pre-check before saving.** Run the draft through `check_prose` with `{surface: "content_post", content: <post>}` and treat the `failures[]` as an advisory checklist: fix what you agree with, keep what the seller deliberately wants — the annotations are hypotheses recorded for learning, not a pass/fail loop, and the seller's voice wins. Hold on to the returned `rules_version`.
+**Pre-check before saving.** If `check_prose` is advertised, run the draft through it with `{surface: "content_post", content: <post>}` and treat the `failures[]` as an advisory checklist: fix what you agree with, keep what the seller deliberately wants — the annotations are hypotheses recorded for learning, not a pass/fail loop, and the seller's voice wins. Hold on to the returned `rules_version`.
 
 Then save it **once** with `manage_content` `action="draft"`, payload `{content, topic_tags?, client_rules_version?}`. **If you resolved an author `user_id` in Step 2, pass the same value as `author_user_id` in the payload** so the draft row is stamped with their `author_user_id` (this is what later carries the author through schedule/publish). Pass the *same* `user_id` you used for the signal pull — don't let signal and draft disagree. Omit `author_user_id` only in the legacy-fallback case. The same **403** trust-boundary rule from Step 3 applies here: on 403, STOP and ask for a permitted author — never retry with the param omitted.
 
@@ -103,7 +110,7 @@ The caption (`content`) is still required — an attachment never replaces the p
 
 When the seller wants changes (tighten the hook, change the CTA, fix a line), revise the text yourself and update the **existing** draft with `manage_content` using `action="edit"`, passing the updated `content`.
 
-**Check every revision before submitting it**, the same way as the initial draft: run the revised text through `check_prose` with `{surface: "content_post", content: <revised post>}`, weigh the `failures[]` as advisory, and pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` draft and edit re-run the same deterministic lint server-side; annotations are recorded, never rejected. The one hard constraint is mechanical: keep the post inside LinkedIn's 3000-char cap, because an over-cap post fails at publish time.
+**Check every revision before submitting it**, the same way as the initial draft: if `check_prose` is advertised, run the revised text through it with `{surface: "content_post", content: <revised post>}`, weigh the `failures[]` as advisory, and pass the returned `rules_version` as `client_rules_version` on the edit. `manage_content` draft and edit re-run the same deterministic lint server-side; annotations are recorded, never rejected. The one hard constraint is mechanical: keep the post inside LinkedIn's 3000-char cap, because an over-cap post fails at publish time.
 
 Never call `manage_content` with `action="draft"` again for a revision — that spawns a duplicate draft row and loses the thread. One post = one draft row, edited in place.
 

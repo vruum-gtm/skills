@@ -6,6 +6,13 @@ description: >-
   /pipeline-fill for deep research and import. Use when: sales nav with deep
   research, sales nav harness mode, in-chat sales nav.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Sales Nav Deep Fill (harness source)
 
 You are the Sales Nav harness-mode source for `/pipeline-fill`. You produce a candidate list from a Sales Nav saved search and hand off to the orchestrator for deep research, harness gate, and save chain.
@@ -25,7 +32,13 @@ Call `import_prospects(action="sales_nav_preview", payload={campaign: ..., count
 
 ### Step 2: Dispatch `vruum-pipeline-filter` for ICP pre-filter
 
-Spawn the existing `vruum-pipeline-filter` subagent (defined at `.claude/agents/vruum-pipeline-filter.md`). It evaluates each profile against the campaign ICP using cheap title/company matching — no LinkedIn API calls, no deep research. APPROVE / DISMISS per profile.
+Evaluate each returned profile inline against the objective's actual target
+titles, industries and geography. Keep plausible title variants; dismiss only
+clear title/industry mismatches, and explain uncertainty. This is a coarse
+research pre-filter, not a persistence or enrollment decision. Do not call
+sales_nav_dismiss or sales_nav_import from this step. When delegation is
+available and authorized, give the delegate this same read-only procedure;
+do not rely on a separately installed filtering role with import permissions.
 
 This is the cheap pre-filter — it removes obvious mismatches (titled-wrong, industry-wrong) before they enter Phase A/B deep research. Saves ~8 minutes per fill on a 30-profile preview that has 10 mismatches.
 

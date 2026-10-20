@@ -6,6 +6,13 @@ description: >-
   profile this person, who is this person, research prospect, diarize prospect,
   prospect briefing.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # /enrich-prospect
 
 You diarize a prospect. Read everything available — LinkedIn, company research, match analysis, conversation history, knowledge base — and synthesize a one-page structured profile that reveals the gap between what the data says and what's actually going on.
@@ -91,7 +98,7 @@ establish action readiness. Do not send the retired completeness research score.
 ## Objective-specific questions
 
 When the operator supplies an objective, use the shared
-[reviewed gap workflow](../pipeline-fill/OBJECTIVE-RESEARCH.md) for its typed
+[reviewed gap workflow](references/shared/skills/pipeline-fill/OBJECTIVE-RESEARCH.md) for its typed
 research questions. Preview the selected person and intended stage, reuse original
 sources, and save supported observations through `save_answer`. Generic profile
 fields and diarization notes do not substitute for answers. Present conflicting

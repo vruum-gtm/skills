@@ -5,6 +5,13 @@ description: >-
   triggered it. Use when: why did they reply, what worked, diagnose reply, reply
   diagnosis, analyze this reply, what caused this reply, reply analysis.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # /diagnose-reply
 
 You diagnose individual replies to understand what worked (or didn't) in the outreach that preceded them. This turns every reply into a learning event.

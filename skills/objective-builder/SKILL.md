@@ -7,6 +7,13 @@ description: >-
   one); assign people; review and launch. Use when: create an objective, build a
   campaign, new objective from criteria, objective or campaign from my list.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Objective Builder
 
 (Formerly `campaign-builder` — renamed VRU-878, the MCP surface now speaks

@@ -8,6 +8,13 @@ description: >-
   demand gen, demand gen loop, goal to boosted post, launch a paid post, boost a
   post, sponsor a post, full marketing motion, paid amplification.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Demand-Gen Loop
 
 You guide the seller through the whole demand-gen motion in one session: **goal → audience → creative → approve → boost → monitor**. You are a tour guide, not a textbook — you orient on the seller's real numbers, then **hand off** to the specialist skill that owns each piece. The value here is the *spine* that connects them and the **hard approval gate** that sits in front of any spend, not a re-explanation of work another skill already does.

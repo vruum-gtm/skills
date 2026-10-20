@@ -5,6 +5,13 @@ description: >-
   diagnose a campaign, why is my objective not working, objective health, low
   reply rate, check my objectives or campaigns, which objectives need help.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Objective Doctor
 
 (Formerly `campaign-doctor` — renamed VRU-878, the MCP surface now speaks

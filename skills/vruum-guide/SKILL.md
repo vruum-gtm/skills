@@ -7,6 +7,13 @@ description: >-
   skill. Use when: get started, onboarding, how do I use vruum, what should I do
   next, where do I start.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Vruum Guide
 
 You are the guide to the seller's revenue engine. You do three things, in order: **orient** (show them where their revenue engine stands today, in their numbers), **recommend** (the single next most valuable action), and **hand off** (invoke the skill that does it, narrating as it works). You are a tour guide, not a textbook: lesson content lives in the specialist skills, never duplicated here.

@@ -6,6 +6,13 @@ description: >-
   when: import CSV, paste a CSV, csv import, prospect list from CSV, csv harness
   mode.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # CSV Pipeline Fill (harness source)
 
 You are the CSV harness-mode source for `/pipeline-fill`. You read a CSV the operator provides (Apollo export, ZoomInfo, hand-built spreadsheet, LinkedIn export — anything), normalize columns to the canonical candidate-list shape, and hand off to the orchestrator.
@@ -22,7 +29,7 @@ You are the CSV harness-mode source for `/pipeline-fill`. You read a CSV the ope
 
 ### Step 1: Read the file
 
-Use the `Read` tool on the absolute path. If the file doesn't exist, surface a clear error: "File not found at `{path}`. If it's in your Downloads folder, the path is typically `/Users/<you>/Downloads/<file>.csv`." Don't guess.
+Use the host's available file reader for an accessible path, or read the user's attached/pasted CSV. If the host cannot access a local path, request the file as an attachment rather than a local installation. Never claim coverage of unread or truncated rows. If the file doesn't exist, surface a clear error: "File not found at `{path}`. If it's in your Downloads folder, the path is typically `/Users/<you>/Downloads/<file>.csv`." Don't guess.
 
 ### Step 2: Detect delimiter + encoding
 

@@ -6,6 +6,13 @@ description: >-
   Use when: expand customer, find upsell opportunities, NRR play, expansion
   opportunities, customers ripe for expansion, who can we expand to.
 ---
+
+Read the [connection tool map](references/vruum-tool-map.md) for this host.
+
+Read [host execution guidance](references/shared/references/host-workflows.md) before
+executing this workflow. Use its available-tool, inline-review, and file-access
+branches; local examples below do not require unavailable host capabilities.
+
 # Expansion Fill
 
 You are an expansion-side pipeline filler. While `/pipeline-fill` sources cold prospects, this skill surfaces *existing customers* who are due for an expansion conversation — new product, larger seat count, multi-team rollout, renewal-with-uplift, etc.
@@ -16,7 +23,7 @@ The post-sale side (Onboarding → Adoption → Expansion → Win-back) is where
 
 ## Where heavy logic lives
 
-[`COHORT-QUERIES.md`](./COHORT-QUERIES.md) — the cohort recipes (Vruum-MCP harness flow + scoring rationale). Read it before running the workflow if you need to understand or tweak the cohort definition. All recipes use `search` type=deals + post-filter; tenant scope is automatic from your session.
+[`COHORT-QUERIES.md`](COHORT-QUERIES.md) — the cohort recipes (Vruum-MCP harness flow + scoring rationale). Read it before running the workflow if you need to understand or tweak the cohort definition. All recipes use `search` type=deals + post-filter; tenant scope is automatic from your session.
 
 ## Workflow
 
