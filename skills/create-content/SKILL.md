@@ -120,6 +120,8 @@ Never call `manage_content` with `action="draft"` again for a revision — that 
 
 When the seller is happy with the draft, ask how they want to land it. **Default to keeping it as a draft or scheduling it.**
 
+Bind the decision to what the seller saw: show the post from `get_content_review post_ids=[<post_id>]` and pass that item's `revision`, unchanged, as `payload.expected_revision` on schedule or publish. A 409 means the post changed after they reviewed it; show it again and get a fresh yes.
+
 - **Keep as draft** — do nothing further; the draft already exists and is visible at `/marketing/content`.
 - **Schedule** — call `manage_content` with `action="schedule"` and a `scheduled_at` ISO-8601 timestamp. It auto-publishes when due.
 - **Publish now** — this is destructive and irreversible, and it will fail (marking the draft unusable) if no LinkedIn account is connected. So treat it as a deliberate, confirmed action:

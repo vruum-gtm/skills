@@ -24,7 +24,7 @@ All harness source skills produce candidate lists matching this shape exactly. T
     company_website: string | null,   // canonical http(s) company URL
     company_linkedin_url: string | null, // canonical /company/ or /school/ URL
     linkedin_url: string | null,      // canonical /in/ URL — null OK if name+company set
-    email: string | null,             // null = pending lookup; engine doesn't gate on email presence
+    email: string | null,             // null = pending; looked up after the save (Step 7 c3); engine doesn't gate on email presence
     person_id: string | null,         // pre-existing Vruum person UUID; null for new (resolved in Step 7)
     title: string | null,             // optional, fills via Phase B if missing
     raw_signals: object | null        // source-specific opaque blob (yc batch, csv row#, etc.)
@@ -194,7 +194,7 @@ phase_a_signals:
 objective_icp_summary: {one paragraph from the research_playbook fetch}
 acv_floor: {dollars}
 
-Follow the supplied canonical person research procedure and return the Phase B result. Do NOT call manage_person action=save_discovered or manage_outreach action=start; those are orchestrator-only.
+Follow the supplied canonical person research procedure and return the Phase B result. Skip its work-email step: research_lookup action=find_email takes only a saved person's person_id, so the orchestrator looks the email up after the save (Step 7 c3). Return the email given above, or null with email_status pending. Do NOT call manage_person action=save_discovered or manage_outreach action=start; those are orchestrator-only.
 ```
 
 Each subagent returns: `first_name`, `last_name`, `email`, `linkedin_url`, `title`, `company_name`, `company_domain`, `company_website`, `company_linkedin_url`, `topics_of_interest`, `recent_posts`, `opening_hooks[]` (2–3, with source URLs), `decision_maker_level` (junior/mid/senior), `email_status` (found/pending), `role_start_date`, per-prospect `triggers[]`, `STATUS`. Every `recent_posts` item uses the backend shape `{text, posted_at?, share_url?, reaction_count?, comment_count?}`; never send the retired `content`, `url`, `excerpt`, or `date` keys. Note: `person_id` is NOT returned here — identity resolution happens in Step 7.
@@ -380,6 +380,36 @@ activation. Preview up to 20 subjects together so inherited account questions ru
 once. Save only original-source observations through the common answer writer.
 Report unresolved requirements; do not turn a fit score or completed research unit
 into readiness. Research-only mode never enters this save step.
+
+### c3. Find missing work emails (after the save)
+
+`research_lookup` action=find_email looks up the email of a person already saved
+in Vruum: `payload={person_id}` (from step c), and `person_id` is the only key it
+accepts. Name and domain come from the saved person; sending `first_name`,
+`last_name` or `domain` is refused (422 "does not accept `payload` keys"), and so
+is a call without `person_id` (422 "requires `payload` keys: ['person_id']").
+Never call it before the save, and never save a person only to look up their
+email (a dismissed or research-only prospect gets no lookup).
+
+For each person saved in step c whose email is still null, call find_email once
+with their `person_id` (or one `items` batch of `{person_id}` payloads). A recent
+purchase for that person is reused, not bought again; otherwise it uses a
+provider credit, recorded on the purchase ledger. Then:
+- `found: true`: report the email and its `verification_status`.
+- `found: false`: the person stays `email_pending` and still counts as saved.
+- 409 `person_identity_review_required`: another saved person with the same name
+  and company holds that email (`conflicting_person_ids`); surface it for review
+  and do not retry.
+- 409 `work_email_lookup_in_progress` or `work_email_reconciliation_required`: an
+  earlier lookup has not settled; leave the person `email_pending` and do not
+  call again this run.
+- 429 `work_email_cap_refused`: the lookup cap is reached; stop looking up
+  emails for the rest of the run and report how many are still pending.
+- 404: the person is not in this workspace; 503: lookups are unavailable. Leave
+  `email_pending` and report it.
+
+Run these before step d, so an enrolled person has every email that could be
+found.
 
 ### d. Bulk enrollment (only after all prospects saved)
 

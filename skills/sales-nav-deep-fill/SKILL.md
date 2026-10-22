@@ -52,7 +52,7 @@ Take the APPROVED profiles from Step 2 and convert them to the canonical candida
 - `company_linkedin_url` (from the current employer/company result, not the person's `/in/` URL)
 - `linkedin_url` (canonicalize via the LinkedIn URL in the profile)
 - `title` (current title — useful for downstream classification but Phase B re-fetches authoritatively)
-- `email`: null (Phase B finds it)
+- `email`: null (looked up after the save)
 - `person_id`: null (resolved in Step 7 of engine flow)
 - `raw_signals`: `{source: "sales-nav-deep", search_id: ..., preview_metadata: {...}}`
 

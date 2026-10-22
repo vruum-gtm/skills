@@ -66,3 +66,17 @@ the receipt. After an uncertain write, inspect current state before retrying;
 if available reads cannot reconcile it, stop that item rather than duplicate it.
 Retry-key support is operation-specific. Approval, queued execution, scheduling,
 publication, and delivery are distinct states; report what is actually verified.
+
+For routine outreach monitoring, use one `get_outreach_review` read (plugin:
+`list_outreach_drafts`) and follow its `next_step` when present. End an empty
+queue pass; wait for its suggested interval or new input. Read compact,
+paginated message receipts or inbound messages when the task needs them, and
+open individual histories only for specific evidence gaps. An empty review
+queue alone proves neither delivery nor absence of replies.
+
+On throttling, honor `retry_after_seconds` or `retry_after`; preserve completed
+batch items and retry only failed/unattempted reads after the delay. Respect
+`retryable=false`. When compound tool inputs are unclear, fetch
+`type=operation_contract, id='<tool>/action=<action>'`; a tool-family id returns
+a compact index. Reuse known contracts within their returned revision. Plugin
+tools already advertise typed inputs; apply their own schema directly.

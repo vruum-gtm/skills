@@ -26,11 +26,11 @@ Return research; do not save a person, enroll them, or start outreach here.
    entry, not the candidate's guessed or former employer. Preserve canonical
    first/last names, role/title, role start date, employer name and anchors.
    Record a job change as evidence; do not silently retain a stale company.
-5. **Find a work email if needed and authorized.** Use `research_lookup`
-   action=find_email with verified first/last name and current company domain.
-   Preserve provider confidence and any identity conflict. Missing email is
-   pending, not automatic disqualification for a LinkedIn-capable motion.
-   Do not invent an address or discard an existing person ID after a conflict.
+5. **Report the work email; don't look it up here.** `research_lookup`
+   action=find_email takes only a saved person's `person_id`, so it runs after
+   the save, never during research. Return an email already on record, or
+   pending. Missing email is pending, not automatic disqualification for a
+   LinkedIn-capable motion. Do not invent an address.
 6. **Read material beyond the profile.** Search relevant talks, interviews,
    posts and company mentions. Inspect at most five useful results per query
    and read up to two substantive pages per person before expanding scope.

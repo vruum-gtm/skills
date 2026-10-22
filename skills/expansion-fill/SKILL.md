@@ -92,7 +92,7 @@ After 30 days, run `fetch` type=scoreboard subtype=impact with `id=<company_id>`
 ## When NOT to use this skill
 
 - Cold prospecting → use `/pipeline-fill`.
-- Customer health diagnostic / churn prediction → that's a separate NRR workflow (not yet shipped).
+- Customer health or renewal risk → read the account's health and renewal work (`customer_impact`); renewal review is owned work, not an expansion play.
 - Cold prospecting on a churned customer's *new* employer → use `/winback-fill` (the "champion follows you" play).
 - Stalled deal revival on a won-then-stuck account → use `/deal-triage` first; expansion is a separate motion.
 

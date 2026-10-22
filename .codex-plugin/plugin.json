@@ -1,7 +1,7 @@
 {
   "name": "vruum",
-  "version": "0.6.76",
-  "description": "Connect your Vruum workspace to review revenue priorities, manage deals, research prospects, and prepare outreach through guided skills and authenticated MCP tools.",
+  "version": "0.6.77",
+  "description": "Vruum is a Revenue Operating System for coordinating research, pipeline, outreach, deals, and customer growth from your AI assistant.",
   "author": {
     "name": "Vruum",
     "url": "https://vruum.ai"
@@ -14,14 +14,28 @@
   "interface": {
     "displayName": "Vruum",
     "shortDescription": "Manage your revenue work",
-    "longDescription": "Connect your existing Vruum workspace to review daily priorities, inspect deals, research people and companies, and prepare outreach. Use guided workflows to review drafts and record updates in your workspace. Access follows your Vruum account permissions, and execution follows your workspace policies.",
+    "longDescription": "Vruum is a Revenue Operating System for sales and go-to-market teams. It brings prospect research, CRM records, conversations, deal context, and performance data together so you can spend less time piecing information together and more time moving the right revenue work forward.\n\nUse Vruum from your AI assistant to choose and plan go-to-market motions, research people and companies, source and qualify prospects, build outreach objectives, and review email and LinkedIn drafts. Create LinkedIn content, triage engagement, review deals and their next steps, and turn meeting transcripts into CRM activity and follow-up tasks.\n\nFind warm paths through your relationships, diagnose outreach performance, review pipeline and revenue results, and prepare customer-expansion or win-back plays. Shared records keep the research, evidence, decisions, and outcomes connected across these workflows.\n\nA Vruum account is required. Available data and actions depend on your connected services and workspace permissions. Sending messages, publishing content, and paid activation follow their own approval requirements and workspace policies.",
     "developerName": "Vruum",
     "category": "Productivity",
     "capabilities": [
-      "Revenue priorities",
-      "Deal review",
-      "Prospect research",
-      "Outreach review"
+      "Go-to-market motion planning",
+      "Revenue and pipeline analysis",
+      "Daily revenue priorities",
+      "Deal triage and next steps",
+      "Prospect research and enrichment",
+      "Account research",
+      "Pipeline sourcing and qualification",
+      "Outreach objective setup",
+      "Email and LinkedIn outreach",
+      "Outreach triage and draft review",
+      "Outreach performance diagnosis",
+      "LinkedIn content creation",
+      "Engagement triage",
+      "Warm relationship paths",
+      "Meeting notes and follow-up tasks",
+      "CRM record updates",
+      "Customer expansion opportunities",
+      "Win-back outreach"
     ],
     "websiteURL": "https://vruum.ai",
     "privacyPolicyURL": "https://vruum.ai/privacy",

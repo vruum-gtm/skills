@@ -235,6 +235,6 @@ Do not start Vruum agents from the harness path. Existing activation gates apply
 ## Notes
 
 - **Composability** with source skills: source skills produce candidate lists; this orchestrator runs the research engine. Both directions allowed (operator can run a source skill standalone or run /pipeline-fill as the front door).
-- **Real money costs** are in Phase B (LinkedIn API + Hunter calls + OpenAI tokens for the prospect subagent). Phase A is mostly WebFetch/WebSearch which is operator-network. The batch primitives in Step 3 keep dedup latency low (~2s vs 12s pre-batch).
+- **Real money costs** are in Phase B (LinkedIn API + OpenAI tokens for the prospect subagent) and in Step 7's email lookups after the save (Hunter calls, one per saved person without an email). Phase A is mostly WebFetch/WebSearch which is operator-network. The batch primitives in Step 3 keep dedup latency low (~2s vs 12s pre-batch).
 - **Harness offload framing**: deep research and the authoritative objective score run in your IDE (your tokens). The backend validates the payload, records provenance, and mechanically enforces `match_score >= 70`; `MatchAnalysisAgent` is fallback-only for newly added people when a caller omits assessment. Duplicates retain their stored score unless an objective move enqueues an asynchronous re-score.
 - **Audit trail**: every run writes to `.context/runs/pipeline-fill-{ISO-timestamp}.md`. Useful weeks later for "what did the YC fill on Apr 12 import?"

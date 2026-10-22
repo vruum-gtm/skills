@@ -32,8 +32,11 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch type="conversation_reply_plan" | `fetch` | None |
 | fetch type="csv_import" | `fetch` | None |
 | fetch type="customer_impact" | `fetch` | None |
+| fetch type="customer_work" | `fetch` | None |
+| fetch type="customer_work_handoffs" | `fetch` | None |
 | fetch type="deal" | `fetch` | None |
 | fetch type="deal_alerts" | `fetch` | None |
+| fetch type="deal_decision_plan" | `fetch` | None |
 | fetch type="deal_pipelines" | `fetch` | None |
 | fetch type="experiment" | `fetch` | None |
 | fetch type="experiment_assignments" | `fetch` | None |
@@ -53,6 +56,8 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch subtype="reply_diagnosis" type="insights" | `fetch` | None |
 | fetch type="job" | `fetch` | None |
 | fetch type="journey_comparison" | `fetch` | None |
+| fetch type="journey_sales_handoff" | `fetch` | None |
+| fetch type="lifecycle_handoffs" | `fetch` | None |
 | fetch subtype="activity" type="marketing" | `fetch` | None |
 | fetch subtype="content_reply" type="marketing" | `fetch` | None |
 | fetch subtype="content_response" type="marketing" | `fetch` | None |
@@ -65,6 +70,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch type="objective_measurement" | `fetch` | None |
 | fetch type="objective_workspace" | `fetch` | None |
 | fetch type="offer_publication" | `fetch` | None |
+| fetch type="operation_contract" | `fetch` | None |
 | fetch type="person_history_imports" | `fetch` | None |
 | fetch type="person_research" | `fetch` | None |
 | fetch type="plan" | `fetch` | None |
@@ -117,8 +123,11 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | get_person_360  | `get_person_360` | None |
 | get_revenue view="account" | `get_revenue` | None |
 | get_revenue view="bindings" | `get_revenue` | None |
+| get_revenue view="commercial_change" | `get_revenue` | None |
 | get_revenue view="connection" | `get_revenue` | None |
 | get_revenue view="evidence" | `get_revenue` | None |
+| get_revenue view="finance" | `get_revenue` | None |
+| get_revenue view="finance_setup" | `get_revenue` | None |
 | get_revenue view="finance_workspace" | `get_revenue` | None |
 | get_revenue view="metrics" | `get_revenue` | None |
 | get_revenue view="service_margin" | `get_revenue` | None |
@@ -133,11 +142,32 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | import_prospects action="sales_nav_searches" | `import_prospects` | action="list" |
 | import_prospects action="sales_nav_searches" | `import_prospects` | action="register" |
 | import_prospects action="sales_nav_searches" | `import_prospects` | action="update" |
+| inspect_assistant action="activation" | `inspect_assistant` | None |
 | inspect_assistant action="browser_source" | `inspect_assistant` | None |
+| inspect_assistant action="company_context" | `inspect_assistant` | None |
+| inspect_assistant action="company_decisions" | `inspect_assistant` | None |
+| inspect_assistant action="company_understanding" | `inspect_assistant` | None |
+| inspect_assistant action="conflict" | `inspect_assistant` | None |
+| inspect_assistant action="coordination" | `inspect_assistant` | None |
+| inspect_assistant action="coordination_effect" | `inspect_assistant` | None |
+| inspect_assistant action="coordination_templates" | `inspect_assistant` | None |
+| inspect_assistant action="dependencies" | `inspect_assistant` | None |
 | inspect_assistant action="job" | `inspect_assistant` | None |
 | inspect_assistant action="jobs" | `inspect_assistant` | None |
 | inspect_assistant action="list" | `inspect_assistant` | None |
+| inspect_assistant action="practice_applied_work" | `inspect_assistant` | None |
+| inspect_assistant action="practice_focus" | `inspect_assistant` | None |
+| inspect_assistant action="practice_focuses" | `inspect_assistant` | None |
+| inspect_assistant action="practice_roles" | `inspect_assistant` | None |
 | inspect_assistant action="read" | `inspect_assistant` | None |
+| inspect_assistant action="responsibility" | `inspect_assistant` | None |
+| inspect_assistant action="responsibility_evidence" | `inspect_assistant` | None |
+| inspect_assistant action="shared_conversation" | `inspect_assistant` | None |
+| inspect_assistant action="shared_conversations" | `inspect_assistant` | None |
+| inspect_assistant action="standing_approvals" | `inspect_assistant` | None |
+| inspect_assistant action="work_start" | `inspect_assistant` | None |
+| inspect_objective action="authored_artifact" | `inspect_objective` | None |
+| inspect_objective action="demand_plans" | `inspect_objective` | None |
 | inspect_objective action="objective_agent_context" | `inspect_objective` | None |
 | inspect_objective action="objective_agent_options" | `inspect_objective` | None |
 | inspect_objective action="objective_agent_runs" | `inspect_objective` | None |
@@ -164,6 +194,8 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_account action="customer_growth_record" | `manage_account` | None |
 | manage_account action="customer_growth_review" | `manage_account` | None |
 | manage_account action="customer_journey" | `manage_account` | None |
+| manage_account action="customer_work_handoff" | `manage_account` | None |
+| manage_account action="customer_work_record" | `manage_account` | None |
 | manage_account action="delete_impact" | `manage_account` | None |
 | manage_account action="discovery_create" | `manage_account` | None |
 | manage_account action="discovery_fact" | `manage_account` | None |
@@ -175,6 +207,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_account action="impact_verify" | `manage_account` | None |
 | manage_account action="journey_measurement_fact" | `manage_account` | None |
 | manage_account action="kickoff_plan" | `manage_account` | None |
+| manage_account action="lifecycle_handoff_receipt" | `manage_account` | None |
 | manage_account action="list" | `manage_account` | action="archive" |
 | manage_account action="list" | `manage_account` | action="create" |
 | manage_account action="list_members" | `manage_account` | action="add" |
@@ -190,9 +223,18 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_account action="renewal_review" | `manage_account` | None |
 | manage_account action="state" | `manage_account` | None |
 | manage_account action="task" | `manage_account` | None |
+| manage_account action="transfer_sales_followups" | `manage_account` | None |
 | manage_assistant action="append_message" | `manage_assistant` | None |
+| manage_assistant action="append_shared_message" | `manage_assistant` | None |
+| manage_assistant action="ask_shared_conversation" | `manage_assistant` | None |
+| manage_assistant action="confirm_shared_audience" | `manage_assistant` | None |
+| manage_assistant action="conflict_decide" | `manage_assistant` | None |
+| manage_assistant action="coordination_control" | `manage_assistant` | None |
+| manage_assistant action="coordination_effect_decide" | `manage_assistant` | None |
+| manage_assistant action="coordination_start" | `manage_assistant` | None |
 | manage_assistant action="decide_card" | `manage_assistant` | decision="approved" |
 | manage_assistant action="decide_card" | `manage_assistant` | decision="declined" |
+| manage_assistant action="dependency_record" | `manage_assistant` | None |
 | manage_assistant action="job_control" | `manage_assistant` | command="pause" |
 | manage_assistant action="job_control" | `manage_assistant` | command="resume" |
 | manage_assistant action="job_control" | `manage_assistant` | command="cancel" |
@@ -200,9 +242,23 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_assistant action="job_control" | `manage_assistant` | command="takeover" |
 | manage_assistant action="job_control" | `manage_assistant` | command="stop_period" |
 | manage_assistant action="job_start" | `manage_assistant` | None |
+| manage_assistant action="preview_shared_audience" | `manage_assistant` | None |
+| manage_assistant action="qualification_start" | `manage_assistant` | None |
 | manage_assistant action="rate" | `manage_assistant` | None |
+| manage_assistant action="reopen_company_source" | `manage_assistant` | None |
+| manage_assistant action="reopen_context_source" | `manage_assistant` | None |
+| manage_assistant action="responsibility_control" | `manage_assistant` | None |
+| manage_assistant action="responsibility_start" | `manage_assistant` | None |
+| manage_assistant action="retain_job_result" | `manage_assistant` | None |
+| manage_assistant action="revoke_shared_participant" | `manage_assistant` | None |
+| manage_assistant action="standing_approval_control" | `manage_assistant` | None |
+| manage_assistant action="standing_approval_grant" | `manage_assistant` | None |
 | manage_assistant action="start_conversation" | `manage_assistant` | None |
 | manage_assistant action="undo" | `manage_assistant` | None |
+| manage_assistant action="work_start_approve" | `manage_assistant` | None |
+| manage_assistant action="work_start_decline" | `manage_assistant` | None |
+| manage_assistant action="work_start_propose" | `manage_assistant` | None |
+| manage_assistant action="work_start_reassign" | `manage_assistant` | None |
 | manage_content action="authorize_author" kind="ad" | `manage_content` | None |
 | manage_content action="boost" kind="ad" | `manage_content` | None |
 | manage_content action="pause" kind="ad" | `manage_content` | None |
@@ -210,6 +266,12 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_content action="revoke_author" kind="ad" | `manage_content` | None |
 | manage_content action="set_page" kind="ad" | `manage_content` | None |
 | manage_content action="store_creative" kind="ad" | `manage_content` | None |
+| manage_content action="context" kind="authored_work" | `manage_content` | None |
+| manage_content action="demand_decide" kind="authored_work" | `manage_content` | None |
+| manage_content action="demand_remeasure" kind="authored_work" | `manage_content` | None |
+| manage_content action="record_demand_manifest" kind="authored_work" | `manage_content` | None |
+| manage_content action="record_request" kind="authored_work" | `manage_content` | None |
+| manage_content action="save" kind="authored_work" | `manage_content` | None |
 | manage_content action="delete" kind="content" | `manage_content` | None |
 | manage_content action="draft" kind="content" | `manage_content` | None |
 | manage_content action="draft_post" kind="content" | `manage_content` | None |
@@ -232,6 +294,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_deal action="create" | `manage_deal` | None |
 | manage_deal action="create_pipeline" | `manage_deal` | None |
 | manage_deal action="create_stage" | `manage_deal` | None |
+| manage_deal action="decision_plan" | `manage_deal` | None |
 | manage_deal action="handoff" | `manage_deal` | decision="accept" |
 | manage_deal action="handoff" | `manage_deal` | decision="propose" |
 | manage_deal action="handoff" | `manage_deal` | decision="return" |
@@ -295,6 +358,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_messages action="edit" | `manage_messages` | None |
 | manage_messages action="link_commitment_meeting" | `manage_messages` | decision="link" |
 | manage_messages action="link_commitment_meeting" | `manage_messages` | decision="unlink" |
+| manage_messages action="prepare_initial" | `manage_messages` | None |
 | manage_messages action="reconcile_delivery" | `manage_messages` | None |
 | manage_messages action="reconcile_external_email" | `manage_messages` | action="apply" |
 | manage_messages action="reconcile_external_email" | `manage_messages` | action="exceptions" |
@@ -326,6 +390,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_outreach action="attention_decision" | `manage_outreach` | decision="saved" |
 | manage_outreach action="attention_decision" | `manage_outreach` | decision="undone" |
 | manage_outreach action="channels" | `manage_outreach` | None |
+| manage_outreach action="experiment_delivery_plan" | `manage_outreach` | None |
 | manage_outreach action="experiment_design" | `manage_outreach` | None |
 | manage_outreach action="experiment_start" | `manage_outreach` | None |
 | manage_outreach action="experiment_stop" | `manage_outreach` | None |
@@ -408,8 +473,16 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_revenue action="connect" | `manage_revenue` | None |
 | manage_revenue action="decide_binding" | `manage_revenue` | decision="confirmed" |
 | manage_revenue action="decide_binding" | `manage_revenue` | decision="rejected" |
+| manage_revenue action="decide_commercial_change" | `manage_revenue` | decision="approve" |
+| manage_revenue action="decide_commercial_change" | `manage_revenue` | decision="reject" |
 | manage_revenue action="disconnect" | `manage_revenue` | None |
 | manage_revenue action="disconnect_preview" | `manage_revenue` | None |
+| manage_revenue action="finance_commercial_scope" | `manage_revenue` | None |
+| manage_revenue action="finance_coverage" | `manage_revenue` | None |
+| manage_revenue action="finance_entity" | `manage_revenue` | None |
+| manage_revenue action="finance_reconciliation" | `manage_revenue` | None |
+| manage_revenue action="finance_reconciliation_retract" | `manage_revenue` | None |
+| manage_revenue action="finance_source_family" | `manage_revenue` | None |
 | manage_revenue action="reconcile" | `manage_revenue` | None |
 | manage_revenue action="replay" | `manage_revenue` | None |
 | manage_revenue action="service_margin_statement" | `manage_revenue` | None |
