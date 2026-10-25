@@ -444,6 +444,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_outreach action="recommendation_decision" | `manage_outreach` | decision="accept" |
 | manage_outreach action="recommendation_decision" | `manage_outreach` | decision="defer" |
 | manage_outreach action="recommendation_decision" | `manage_outreach` | decision="reject" |
+| manage_outreach action="refusal_decide" | `manage_outreach` | None |
 | manage_outreach action="resume" | `manage_outreach` | None |
 | manage_outreach action="start" | `manage_outreach` | None |
 | manage_outreach action="trigger_touch" | `manage_outreach` | None |
