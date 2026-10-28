@@ -143,6 +143,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | import_prospects action="sales_nav_searches" | `import_prospects` | action="register" |
 | import_prospects action="sales_nav_searches" | `import_prospects` | action="update" |
 | inspect_assistant action="activation" | `inspect_assistant` | None |
+| inspect_assistant action="attention" | `inspect_assistant` | None |
 | inspect_assistant action="browser_source" | `inspect_assistant` | None |
 | inspect_assistant action="company_context" | `inspect_assistant` | None |
 | inspect_assistant action="company_decisions" | `inspect_assistant` | None |
@@ -226,6 +227,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_account action="transfer_sales_followups" | `manage_account` | None |
 | manage_assistant action="append_message" | `manage_assistant` | None |
 | manage_assistant action="append_shared_message" | `manage_assistant` | None |
+| manage_assistant action="archive" | `manage_assistant` | None |
 | manage_assistant action="ask_shared_conversation" | `manage_assistant` | None |
 | manage_assistant action="confirm_shared_audience" | `manage_assistant` | None |
 | manage_assistant action="conflict_decide" | `manage_assistant` | None |
@@ -242,6 +244,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_assistant action="job_control" | `manage_assistant` | command="takeover" |
 | manage_assistant action="job_control" | `manage_assistant` | command="stop_period" |
 | manage_assistant action="job_start" | `manage_assistant` | None |
+| manage_assistant action="mark_read" | `manage_assistant` | None |
 | manage_assistant action="preview_shared_audience" | `manage_assistant` | None |
 | manage_assistant action="qualification_start" | `manage_assistant` | None |
 | manage_assistant action="rate" | `manage_assistant` | None |
@@ -249,6 +252,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_assistant action="reopen_context_source" | `manage_assistant` | None |
 | manage_assistant action="responsibility_control" | `manage_assistant` | None |
 | manage_assistant action="responsibility_start" | `manage_assistant` | None |
+| manage_assistant action="restore" | `manage_assistant` | None |
 | manage_assistant action="retain_job_result" | `manage_assistant` | None |
 | manage_assistant action="revoke_shared_participant" | `manage_assistant` | None |
 | manage_assistant action="standing_approval_control" | `manage_assistant` | None |
