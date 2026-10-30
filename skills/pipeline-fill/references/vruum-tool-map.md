@@ -295,6 +295,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_deal action="advance" | `manage_deal` | None |
 | manage_deal action="archive_pipeline" | `manage_deal` | None |
 | manage_deal action="archive_stage" | `manage_deal` | None |
+| manage_deal action="buying_role" | `manage_deal` | None |
 | manage_deal action="create" | `manage_deal` | None |
 | manage_deal action="create_pipeline" | `manage_deal` | None |
 | manage_deal action="create_stage" | `manage_deal` | None |
