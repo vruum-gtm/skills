@@ -113,9 +113,9 @@ Key behaviors:
 
 For each recommended fix the user approves:
 
-- **Targeting fix**: Suggest specific cohort/target field changes and call `manage_outreach` with action=objective_update, the objective id, and a payload of new `target`/`cohort` fields (titles, industries, company size).
+- **Targeting fix**: Suggest specific cohort/target field changes and call `manage_outreach` with action=objective_update, the objective id, and the WHOLE `target`/`cohort` section with your change applied (titles, industries, company size). Read it first with `fetch` type='objective': a sent `target` or `cohort` replaces the saved one, so a field you leave out is cleared.
 
-- **Messaging fix**: Suggest revised tone/selling-strategy fields (in `policy_envelope`) and apply them via `manage_outreach` action=objective_update.
+- **Messaging fix**: Suggest revised tone/selling-strategy fields and apply them via `manage_outreach` action=objective_update with `policy_envelope: {tone_rules: {...}}`. The envelope merges by section: send the whole `tone_rules` section; other sections stay as saved.
 
 - **Channel fix**: Call `manage_outreach` with action=objective_update and a payload of adjusted allowed channels (in `policy_envelope`).
 
