@@ -9,6 +9,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | Workflow operation | Callable tool | Fixed payload selectors |
 | --- | --- | --- |
 | fetch type="account_brief" | `fetch` | None |
+| fetch type="account_research" | `fetch` | None |
 | fetch type="account_state" | `fetch` | None |
 | fetch type="action" | `fetch` | None |
 | fetch type="actions_inbox" | `fetch` | None |
@@ -82,6 +83,9 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch subtype="people" type="relationship_history_detail" | `fetch` | None |
 | fetch subtype="people" type="relationship_history" | `fetch` | None |
 | fetch type="research_answers" | `fetch` | None |
+| fetch type="research_cells" | `fetch` | None |
+| fetch type="research_column_fill" | `fetch` | None |
+| fetch type="research_columns" | `fetch` | None |
 | fetch type="research_playbook" | `fetch` | None |
 | fetch type="research_run" | `fetch` | None |
 | fetch type="research_sources" | `fetch` | None |
@@ -513,11 +517,15 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | query_crm  | `query_crm` | None |
 | research action="approve_gaps" | `research` | None |
 | research action="cancel_account_brief" | `research` | None |
+| research action="change_column_meaning" | `research` | None |
+| research action="create_column" | `research` | None |
+| research action="create_columns" | `research` | None |
 | research action="enrich" | `research` | None |
 | research action="enrich_account" | `research` | None |
 | research action="enrich_emails" | `research` | None |
 | research action="enrich_person" | `research` | None |
 | research action="enrich_profile" | `research` | None |
+| research action="fill_columns" | `research` | None |
 | research action="find_linkedin" | `research` | None |
 | research_lookup action="browser_page" | `research_lookup` | operation="open" |
 | research_lookup action="browser_page" | `research_lookup` | operation="scroll" |
@@ -540,6 +548,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | research action="preview_gaps" | `research` | None |
 | research action="propose_gaps" | `research` | None |
 | research action="record_claim_verdict" | `research` | None |
+| research action="retire_column" | `research` | None |
 | research action="save_answer" | `research` | None |
 | research action="save_claim" | `research` | None |
 | research action="save_company" | `research` | None |
@@ -547,6 +556,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | research action="save_person" | `research` | None |
 | research action="start_account_brief" | `research` | None |
 | research action="stop_gaps" | `research` | None |
+| research action="update_column" | `research` | None |
 | search type="claims" | `search` | None |
 | search type="companies" | `search` | None |
 | search type="content" | `search` | None |

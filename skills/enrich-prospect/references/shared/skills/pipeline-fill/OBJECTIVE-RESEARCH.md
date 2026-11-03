@@ -33,7 +33,7 @@ satisfy a dynamic objective question by themselves.
    question_id:gap.question.id,
    definition_fingerprint:gap.question.definition_fingerprint,
    subject:gap.subject, value:typed_value,
-   source:{kind,reference,excerpt,observed_at}})`.
+   sources:[{kind,reference,excerpt,observed_at}]})`, with 1 to 12 sources.
    Preserve false values and contradictions. Unknown is not false. Original
    activity/meeting references remain activity/meeting sources; an extraction
    never grants `customer_confirmation`. Reuse the same key only for an exact retry.
