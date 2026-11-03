@@ -111,6 +111,9 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch subtype="prose" type="stats" | `fetch` | None |
 | fetch type="unit_economics" | `fetch` | None |
 | fetch type="web_source" | `fetch` | None |
+| fetch type="workspace_research_cells" | `fetch` | None |
+| fetch type="workspace_research_column_fill" | `fetch` | None |
+| fetch type="workspace_research_columns" | `fetch` | None |
 | find_warm_path  | `find_warm_path` | None |
 | get_content_review  | `get_content_review` | None |
 | get_daily_briefing  | `get_daily_briefing` | None |
@@ -520,12 +523,15 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | research action="change_column_meaning" | `research` | None |
 | research action="create_column" | `research` | None |
 | research action="create_columns" | `research` | None |
+| research action="create_workspace_column" | `research` | None |
+| research action="create_workspace_columns" | `research` | None |
 | research action="enrich" | `research` | None |
 | research action="enrich_account" | `research` | None |
 | research action="enrich_emails" | `research` | None |
 | research action="enrich_person" | `research` | None |
 | research action="enrich_profile" | `research` | None |
 | research action="fill_columns" | `research` | None |
+| research action="fill_workspace_columns" | `research` | None |
 | research action="find_linkedin" | `research` | None |
 | research_lookup action="browser_page" | `research_lookup` | operation="open" |
 | research_lookup action="browser_page" | `research_lookup` | operation="scroll" |
@@ -556,6 +562,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | research action="save_person" | `research` | None |
 | research action="start_account_brief" | `research` | None |
 | research action="stop_gaps" | `research` | None |
+| research action="stop_workspace_fill" | `research` | None |
 | research action="update_column" | `research` | None |
 | search type="claims" | `search` | None |
 | search type="companies" | `search` | None |
