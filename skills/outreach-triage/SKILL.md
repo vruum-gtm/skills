@@ -197,11 +197,19 @@ Do NOT auto-approve messages without showing them to the user. Present all resul
 
 **For follow-ups (T2+):** Always show the actual message text for every follow-up, along with the research summary. Group by recommendation:
 
-1. **Clean approvals** (subagent says approve, no edits): Show the message and a one-line note. User can bulk-approve.
+1. **Clean approvals** (subagent says approve, no edits): Show the message and a one-line note. User can bulk-approve (see "Approving" below).
 2. **Edited messages** (subagent rewrote): Show the new message, what changed and why, and the research summary. User reviews each.
 3. **Flagged/rejected** (bad fit, no genuine problem, fabricated personalization): Show the message, the issue, and the subagent's recommendation. For rejections, present the option to reject + stop the outreach plan in one action.
 
 **For reply responses:** Always show full context — the prospect's reply, the draft response, the subagent's analysis. Walk through one at a time.
+
+### Approving: pin exactly what the user saw
+
+Every approval carries the `review_fingerprint` of the draft text the user saw. The server approves a draft only if its current content still matches that fingerprint, so a change made after the user looked (by a subagent, the dashboard, or a teammate) never rides along on their approval.
+
+1. Once every edit for the batch has landed, re-read it in the main session: `get_outreach_review` with `message_ids="<ids, max 20 per read>"` and `content_length="full"`. Each item carries `review_fingerprint` (full reads only). Show the user the text from this read, not a subagent summary or an older read.
+2. Approve the batch in one call (max 50): `manage_messages` action=`approve`, `id=[<ids>]`, `payload={"review_fingerprints": {"<message_id>": "<review_fingerprint>", ...}}`, with exactly one entry per id. A single `review_fingerprint` is the scalar shape (`id="<id>"`, `payload={"review_fingerprint": "<fp>"}`); an array that carries it, or a map that misses or adds an id, is refused before anything is approved.
+3. Read the per-message results. `draft_review_changed` on an item means that draft changed after your read: re-read it, show the user the current text, and approve it again only if they agree. Never fetch a fresh fingerprint and approve without showing the current text; that defeats the gate.
 
 ### Step 5: Rejection cascade
 
@@ -232,6 +240,6 @@ After outreach messages are processed, ask if the user wants to review the engag
 - **Small queue of follow-ups (5 or fewer T2+) with many T1s:** still use subagents for T1 structural review, review follow-ups inline.
 - **User wants to review a specific person:** pull that person's conversation with `fetch` (type=conversation) and review directly. No batch workflow.
 - **Subagent can't reach MCP tools:** fall back to inline review.
-- **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining in bulk with a single `manage_messages` call passing an id array (same action applied to every id, max 50 per call). Confirm first.
+- **Homogeneous T1 pattern:** if the first T1 batch all had the identical issue, fix the remaining with one `edit` call per message (edit takes a scalar id only), then approve or reject them as one id-array call (max 50; approve needs the `review_fingerprints` map above). Confirm first.
 - **Objective plan settings drifted:** repair `max_touches` or `allowed_channels` through `manage_outreach` action=`update` with plan-id arrays. This preserves execution state; never update plan rows directly.
 

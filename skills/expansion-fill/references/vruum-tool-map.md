@@ -111,6 +111,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch subtype="prose" type="stats" | `fetch` | None |
 | fetch type="unit_economics" | `fetch` | None |
 | fetch type="web_source" | `fetch` | None |
+| fetch type="workspace_research_answers" | `fetch` | None |
 | fetch type="workspace_research_cells" | `fetch` | None |
 | fetch type="workspace_research_column_fill" | `fetch` | None |
 | fetch type="workspace_research_columns" | `fetch` | None |
@@ -232,6 +233,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_account action="state" | `manage_account` | None |
 | manage_account action="task" | `manage_account` | None |
 | manage_account action="transfer_sales_followups" | `manage_account` | None |
+| manage_account action="update" | `manage_account` | None |
 | manage_assistant action="append_message" | `manage_assistant` | None |
 | manage_assistant action="append_shared_message" | `manage_assistant` | None |
 | manage_assistant action="archive" | `manage_assistant` | None |
@@ -469,7 +471,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_person action="meeting_booked" | `manage_person` | None |
 | manage_person action="note" | `manage_person` | None |
 | manage_person action="save_discovered" | `manage_person` | None |
-| manage_person action="set_meeting_no_show" | `manage_person` | None |
+| manage_person action="set_meeting_outcome" | `manage_person` | None |
 | manage_person action="set_meeting_purpose" | `manage_person` | None |
 | manage_person action="set_persona" | `manage_person` | None |
 | manage_person action="set_position" | `manage_person` | None |
@@ -560,6 +562,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | research action="save_company" | `research` | None |
 | research action="save_evidence" | `research` | None |
 | research action="save_person" | `research` | None |
+| research action="save_workspace_answer" | `research` | None |
 | research action="start_account_brief" | `research` | None |
 | research action="stop_gaps" | `research` | None |
 | research action="stop_workspace_fill" | `research` | None |
