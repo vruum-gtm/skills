@@ -64,7 +64,7 @@ Stable operator-visible codes:
 | `linkedin_identity_unresolvable` | profile is invalid/private/not found | use the next allowed structured fallback with the same `person_id` |
 | `linkedin_temporarily_unavailable` | timeout/429 after bounded retries | retry only the returned item later; do not switch silently |
 | `linkedin_auth_required` | LinkedIn account is disconnected/expired | reconnect LinkedIn |
-| `company_identity_conflict` | exact evidence points to different companies | correct the evidence; never auto-merge |
+| `company_identity_conflict` | exact evidence points to different companies | when `matched_company_id` is present and it is the same business, retry the discovery save with `name=matched_company_name`; otherwise correct the evidence; never auto-merge |
 | `company_resolution_failed` | company resolver returned no canonical row | retry once, then inspect resolver logs and evidence |
 | `company_research_commit_unknown` | company research persistence response was lost | replay only the identical payload with the same idempotency key |
 | `company_research_serialization_conflict` | bounded transaction retries were exhausted | replay only the identical payload with the same idempotency key |

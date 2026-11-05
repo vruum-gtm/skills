@@ -21,6 +21,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch type="attention_portfolio" | `fetch` | None |
 | fetch type="billing" | `fetch` | None |
 | fetch type="bowtie" | `fetch` | None |
+| fetch type="budgets" | `fetch` | None |
 | fetch type="buyer_inquiry" | `fetch` | None |
 | fetch type="claim" | `fetch` | None |
 | fetch type="company_family" | `fetch` | None |
@@ -315,7 +316,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_deal action="handoff" | `manage_deal` | decision="withdraw" |
 | manage_deal action="impact_commitment" | `manage_deal` | None |
 | manage_deal action="lost" | `manage_deal` | None |
-| manage_deal action="meeting_outcome" | `manage_deal` | None |
+| manage_deal action="meeting_feedback" | `manage_deal` | None |
 | manage_deal action="note" | `manage_deal` | None |
 | manage_deal action="offer_correction" | `manage_deal` | None |
 | manage_deal action="offer_correction_accept" | `manage_deal` | None |
