@@ -391,6 +391,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_messages action="review_commitment" | `manage_messages` | decision="reopened" |
 | manage_messages action="send" | `manage_messages` | None |
 | manage_messages action="send_linkedin" | `manage_messages` | None |
+| manage_messages action="unapprove" | `manage_messages` | None |
 | manage_network_identity_resolution action="classify_mailbox" | `manage_network_identity_resolution` | None |
 | manage_network_identity_resolution action="merge_identity" | `manage_network_identity_resolution` | None |
 | manage_network_identity_resolution action="merge_people" | `manage_network_identity_resolution` | None |
