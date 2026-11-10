@@ -186,7 +186,6 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | inspect_objective action="objective_audience_build" | `inspect_objective` | None |
 | inspect_objective action="objective_business" | `inspect_objective` | None |
 | inspect_objective action="objective_forecast" | `inspect_objective` | None |
-| inspect_objective action="objective_pilot_review" | `inspect_objective` | None |
 | inspect_objective action="objective_setup_context" | `inspect_objective` | None |
 | inspect_objective action="objective_setup_list" | `inspect_objective` | None |
 | inspect_objective action="objective_sourcing_plan" | `inspect_objective` | None |
@@ -436,9 +435,6 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_outreach action="objective_observe_policy" | `manage_outreach` | None |
 | manage_outreach action="objective_opportunity_send" | `manage_outreach` | None |
 | manage_outreach action="objective_pause" | `manage_outreach` | None |
-| manage_outreach action="objective_pilot_decide" | `manage_outreach` | None |
-| manage_outreach action="objective_pilot_prepared" | `manage_outreach` | None |
-| manage_outreach action="objective_pilot_refresh" | `manage_outreach` | None |
 | manage_outreach action="objective_pin" | `manage_outreach` | None |
 | manage_outreach action="objective_research_brief" | `manage_outreach` | None |
 | manage_outreach action="objective_retire" | `manage_outreach` | None |
