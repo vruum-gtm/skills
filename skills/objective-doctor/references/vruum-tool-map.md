@@ -9,6 +9,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | Workflow operation | Callable tool | Fixed payload selectors |
 | --- | --- | --- |
 | fetch type="account_brief" | `fetch` | None |
+| fetch type="account_context" | `fetch` | None |
 | fetch type="account_research" | `fetch` | None |
 | fetch type="account_state" | `fetch` | None |
 | fetch type="action" | `fetch` | None |
@@ -105,6 +106,8 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | fetch subtype="objective_delegations" type="settings" | `fetch` | None |
 | fetch subtype="profile" type="settings" | `fetch` | None |
 | fetch subtype="record_views" type="settings" | `fetch` | None |
+| fetch subtype="team_facts" type="settings" | `fetch` | None |
+| fetch subtype="team_job_roles" type="settings" | `fetch` | None |
 | fetch type="skill" | `fetch` | None |
 | fetch subtype="outreach" type="stats" | `fetch` | None |
 | fetch subtype="person" type="stats" | `fetch` | None |
@@ -499,15 +502,19 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_revenue action="reconcile" | `manage_revenue` | None |
 | manage_revenue action="replay" | `manage_revenue` | None |
 | manage_revenue action="service_margin_statement" | `manage_revenue` | None |
+| manage_settings action="account_owners_assign" | `manage_settings` | None |
 | manage_settings action="auto_fill" | `manage_settings` | None |
 | manage_settings action="automation" | `manage_settings` | None |
+| manage_settings action="away_set" | `manage_settings` | None |
 | manage_settings action="buyer_inquiry_decide" | `manage_settings` | None |
+| manage_settings action="coverage_set" | `manage_settings` | None |
 | manage_settings action="cta_link" | `manage_settings` | action="create" |
 | manage_settings action="cta_link" | `manage_settings` | action="delete" |
 | manage_settings action="cta_link" | `manage_settings` | action="set_default" |
 | manage_settings action="cta_link" | `manage_settings` | action="update" |
 | manage_settings action="hubspot_backfill" | `manage_settings` | None |
 | manage_settings action="hubspot_sync_settings" | `manage_settings` | None |
+| manage_settings action="job_role_record" | `manage_settings` | None |
 | manage_settings action="marketing" | `manage_settings` | None |
 | manage_settings action="offer_create" | `manage_settings` | None |
 | manage_settings action="offer_publish" | `manage_settings` | None |
@@ -517,6 +524,7 @@ Reads and previews can consume provider work where disclosed by the tool. Existi
 | manage_settings action="profile" | `manage_settings` | None |
 | manage_settings action="view_save" | `manage_settings` | None |
 | manage_settings action="view_update" | `manage_settings` | None |
+| manage_settings action="work_hours_set" | `manage_settings` | None |
 | query_crm  | `query_crm` | None |
 | research action="approve_gaps" | `research` | None |
 | research action="cancel_account_brief" | `research` | None |

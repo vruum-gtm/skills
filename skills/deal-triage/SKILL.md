@@ -24,7 +24,7 @@ Deal review requires cross-referencing multiple data sources per deal: the buyin
 ## Optional delegated execution
 
 This skill uses the custom agent `vruum-deal-reviewer` (bundled at `agents/vruum-deal-reviewer.md`). That agent has:
-- **Read-only** Vruum MCP access (`fetch` for deal, deal_alerts, company_research, and account_state reads; `search` for deal lists; plus the composites `get_deal_360`, `inspect_pipeline`, `get_person_360`). It has NO write tools (no `manage_deal`) by design — review is analysis, not mutation. Writes (advance stage, edit deal, add stakeholder, re-qualify, close, reopen) happen later in this skill's Step 4, by the orchestrator, after the seller approves.
+- **Read-only** Vruum MCP access (`fetch` for deal, deal_alerts, company_research, account_state, and account_context reads; `search` for deal lists; plus the composites `get_deal_360`, `inspect_pipeline`, `get_person_360`). It has NO write tools (no `manage_deal`) by design — review is analysis, not mutation. Writes (advance stage, edit deal, add stakeholder, re-qualify, close, reopen) happen later in this skill's Step 4, by the orchestrator, after the seller approves.
 - Web search for prospect/company research
 - Complete deal review instructions baked into its system prompt
 
@@ -63,7 +63,7 @@ Each subagent prompt should include:
 1. Call `get_deal_360` for the full deal context in one call (deal info, the buying center under `stakeholders` — the nine roles: initiator, user, champion, decider, gatekeeper, influencer, executive_buyer, approver, purchaser — the Customer Impact record under `impact_commitment` — SPICED fields with their basis, `spiced` completeness with the `next` element to establish, the derived `meddic` view, status, confidence, `verified_priority` — and the recent activity timeline). If the consolidated endpoint isn't available in your tool list, fall back to `fetch` with type=deal — the deal row carries `qualification` and `qualification_score` when previously computed.
 2. **Read** `impact_commitment.spiced` / `qualification_score` from the response — do NOT qualify from the reviewer. `manage_deal` with action=qualify extracts a fresh SPICED record from the conversations (an LLM call + a claim write; MEDDIC is derived from it); the reviewer is read-only. If no record stands, the completeness score is < 40, or the record is older than 30 days, the reviewer emits a `re_qualify` recommendation and the orchestrator (this skill) runs `manage_deal` action=qualify ONLY after the seller approves in Step 4.
 3. Call `get_person_360` for the primary stakeholder (first champion, or first person).
-4. Call `fetch` with type=account_state for the deal's account stage + health. If 404 (no row yet), default to `prospect` / null health.
+4. Call `fetch` with type=account_state for the deal's account stage + health. If 404 (no row yet), default to `prospect` / null health. When the review needs the rest of the account (its other people, conversations by channel, commitments, open Actions), call `fetch` with type=account_context and id={deal_id}: one bounded read, instead of one `get_person_360` per stakeholder.
 5. Return a structured summary in this exact format:
 
 ```

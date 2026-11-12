@@ -148,7 +148,7 @@ Each subagent returns: `company_name`, `domain`, `company_summary`, `company_sta
 
 **Wait for the wave to complete before Phase B.** Phase B inputs depend on Phase A's signals (or null if failed).
 
-**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness tags them `harness_gate_status: gate_inconclusive`; the Step 7 rubric gives zero company/ACV and outbound points, so their authoritative score cannot exceed 50 and the backend-enforced gate cannot enroll them. Save them for operator review and surface them in the final report so the operator can re-run the failed companies later.
+**Subagent timeout cascade (load-bearing):** when STATUS=failed for a company, the orchestrator does NOT skip the prospects from that company. Phase B still runs for them with `null` company signals. The harness tags them `harness_gate_status: gate_inconclusive`; the Step 7 rubric gives zero company/ACV and outbound points, so their authoritative score cannot exceed 50 and Step 7d leaves them out. Save them for operator review and surface them in the final report so the operator can re-run the failed companies later.
 
 **Inter-wave progress line.** After each wave (5–10 subagents):
 ```
@@ -210,7 +210,7 @@ The Phase B result describes the prospect's **current** employer, not merely the
 
 ## Step 6 — Harness pre-filter gate (orchestrator-side, pre-save)
 
-This is the categorical first half of the harness-authoritative gate. It avoids wasted backend saves for obvious dismisses and feeds the deterministic numeric assessment in Step 7c. The backend does not re-score a supplied assessment; it records the harness score and mechanically enforces `match_score >= 70`. `MatchAnalysisAgent` is fallback-only for newly added people when callers omit assessment; duplicates retain their stored score unless a objective move enqueues an asynchronous re-score.
+This is the categorical first half of the harness-authoritative gate. It avoids wasted backend saves for obvious dismisses and feeds the deterministic numeric assessment in Step 7c. The backend does not re-score a supplied assessment; it records the harness score and returns `quality_gate_pass` (true at `match_score >= 70`). The backend refuses nothing on that flag, so the 70-point line is held here and in Step 7d. `MatchAnalysisAgent` is fallback-only for newly added people when callers omit assessment; duplicates retain their stored score unless a objective move enqueues an asynchronous re-score.
 
 Per surviving prospect, evaluate four criteria using the objective's playbook ICP and the Phase A + Phase B signals:
 
@@ -370,7 +370,7 @@ This:
 
 **Distinguish two failure modes (Codex Finding #9):**
 - **Request failure (5xx, timeout, network):** retry once with 2s backoff. If still failing, leave the prospect in `discovery_failed` status and surface in the final report. **Don't** claim "saved as gate-fail" — the row was never written.
-- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research; backend marks gate-fail; surface for operator review. This is a soft-fail. The prospect is on file with full research, useful for future objectives.
+- **Request success + low score (`quality_gate_pass: false`):** the prospect IS saved with research and, when the save passed `objective_id`, is a member of that objective. The backend only reports the flag: it will not refuse a later start, and an active objective enrolls its members on its own. Leave the person out of Step 7d and name them in the report, so the operator can remove them from the objective or keep them.
 
 ### c2. Reviewed objective questions
 
@@ -446,13 +446,13 @@ Harness pre-filter gate:
   dismiss      : {N}  (top reasons: acv_too_low={N}, decision_maker_junior={N})
   company_unresolved : {N}  (not saved — list the people and missing anchors)
 
-Backend-enforced gate using the authoritative harness score (match_score >= 70):
+Backend-reported score flag, from the authoritative harness score (quality_gate_pass, match_score >= 70; advisory):
   passed       : {N}
-  failed       : {N}  (saved with research; operator can review via /enrich-prospect)
+  failed       : {N}  (saved with research and, in save-and-enroll mode, members of the objective; list them)
   request_failed : {N}  (retry candidates — surface in next run)
   company_binding_failed : {N}  (saved response was not company-bound; never enrolled)
 
-Enrolled (harness gate + backend score gate + company binding pass, in auto-enroll mode): {N}
+Enrolled (harness gate + score flag + company binding pass, in auto-enroll mode): {N}
 Saved but not enrolled: {N}
 
 Triggers detected (top 5):
@@ -473,7 +473,7 @@ For multi-objective runs, group the report by objective and include a totals sum
 
 - **Source returns empty after dedup** — orchestrator says "All {N} candidates already in pipeline, nothing to research" and exits cleanly.
 - **Mid-flight cancellation** (operator Ctrl+C before Step 7) — no new Phase A/B research has been persisted. Re-running `/pipeline-fill` reuses pre-existing fresh cache entries but repeats unfinished research waves. Note this honestly in the cancellation message.
-- **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness marks `gate_inconclusive` → Step 7 score is capped below the backend threshold. See Step 4.
+- **Subagent timeout cascade** — Phase A failed for a company → Phase B runs degraded → harness marks `gate_inconclusive` → Step 7 score is capped below 70. See Step 4.
 - **Categorical/numeric divergence** — a categorical `pass` can still score below 70 when evidence strength is weak. Enrollment requires all three confirmations: `harness_gate_status == pass`, backend `quality_gate_pass == true`, and backend `company_bound == true`; surface all three states.
 - **Cached company research >90 days old** — Phase A re-runs the company subagent. Don't trust stale signals for an active fill.
 - **Manual-list cap** — if >100 lines pasted, orchestrator asks "{N} prospects pasted — process all, or first M? (a/N)".

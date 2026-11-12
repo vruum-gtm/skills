@@ -211,9 +211,10 @@ Engagers are the INBOUND direction: people who reacted to or commented on YOUR p
 **The three decisions** (all via `manage_engagements`, `id` = the person UUID, NOT an engagement id):
 
 1. **Act, then record.** Order matters — act FIRST with existing tools, THEN record the decision so attribution stays measurable:
-   - Objective add: `manage_outreach` action=objective_members → then `manage_engagements` action=`engager_actioned`, id=person_id, payload=`{acted_via: {campaign_id: "<uuid>"}}` (the engager-attribution key is still literally `campaign_id` — VRU-878 gap, out of the MCP-facade scope).
+   - Objective add: `manage_outreach` action=objective_members → then `manage_engagements` action=`engager_actioned`, id=person_id, payload=`{acted_via: {objective_id: "<uuid>"}}`. The objective must be draft, active or paused; a retired or completed one is refused, and the credit goes to the objective the decision names.
    - One-off touch: `manage_messages` action=`send`/`send_linkedin` (returns the message_id) → then `engager_actioned` with payload=`{acted_via: {message_id: "<uuid>"}}`.
    - An `engager_actioned` without `acted_via` returns an `unattributed` warning — the engager→outcome funnel goes blind. Always pass it.
+   - After an error that says the decision was not recorded, neither the decision nor its Action exists: retry the call. If you sent `idempotency_key`, retry with a new key or none; the same key does not run the call again. A decision that was recorded after all answers "Already in the requested state".
    - Actioning a sub-70 near miss is allowed (mints their CRM row from the persisted score) — do it when the human read beats the score.
 2. **Dismiss** — `engager_dismissed` with a one-line `note` (payload=`{note: "..."}`). Durable: the person is never re-researched on future engagement. Bulk-dismiss takes an id array.
 3. **Reopen** — `engager_reopened` reverses a WRONG DISMISSAL (restores the person to what they were — a near miss returns as a near miss). Actioned persons cannot be reopened: their outreach happened and the recorded provenance feeds the ads attribution funnel.
@@ -236,7 +237,15 @@ Show `comment_reply` items first with both the inbound reply and the proposed re
 
 Approve re-runs the prose lint server-side; annotations are recorded to the label corpus and never block an approve. The only way an approve comes back `prose_gate_blocked` is a mechanical channel over-limit — cut via `check_prose` + edit and re-approve; the reviewing human can pass `override_reason` for that rare case (honored only for privileged reviewers; recorded with the overridden codes).
 
-**Content posts:** Always show full post text with calendar context and past performance. User approves individually.
+**Content posts:** Always show full post text with calendar context and past performance. User approves individually. A schedule or publish names the post they saw: pass the `revision` of that `get_content_review` item, unchanged, as `payload.expected_revision`. Without it the call is refused (409 `review_required`); a 409 after an edit means show the post again and get a fresh yes.
+
+### Approving: pin exactly what the user saw
+
+Every approval carries the `review_fingerprint` of the draft the user saw. The server approves an engagement only if its current draft (text, reaction, target post, person and sending seat) still matches that fingerprint, so a change made after the user looked (by a subagent, the dashboard, or a teammate) never rides along on their approval.
+
+1. Once every edit for the batch has landed, re-read it in the main session: `get_engagement_review` with `engagement_ids="<ids, max 20 per read>"` and `content_length="full"`. Each draft item carries `review_fingerprint`. Show the user the text from this read, not a subagent summary or an older read. (A preview read also carries it when the item's text was not truncated, which covers reactions.)
+2. Approve the batch in one call (max 100): `manage_engagements` action=`approve`, `id=[<ids>]`, `payload={"review_fingerprints": {"<engagement_id>": "<review_fingerprint>", ...}}`, one entry per id. A single `review_fingerprint` is the scalar shape (`id="<id>"`, `payload={"review_fingerprint": "<fp>"}`).
+3. Read the per-item results in `failed`. `review_required` means that id had no fingerprint; `changed_since_review` means its draft changed after your read. Either way nothing was approved for that item: re-read it, show the user the current draft, and approve it again only if they agree. Never fetch a fresh fingerprint and approve without showing the current draft; that defeats the gate.
 
 ### Step 6: Skip cascade
 
@@ -252,7 +261,7 @@ Always pass a one-line `reason` on every skip/reject (e.g. `reason="match score 
 
 After the first batch returns for any engagement type:
 
-- **All reactions clean:** "First batch of reactions all approved. N more look similar — approve the rest?" Apply without more agents.
+- **All reactions clean:** "First batch of reactions all approved. N more look similar — approve the rest?" Apply without more agents, each with the `review_fingerprint` from your read of it.
 - **All comments have the same issue** (e.g., all too generic, all missing sender voice): Flag the pattern to the user. "First 8 comments are all generic 'great post' style — likely a prompt issue. Want me to edit them all with the same fix, or skip the batch?"
 - **Systematic voice mismatch:** If comments consistently don't sound like the sender, flag it as an objective/prompt config issue rather than fixing each one individually.
 

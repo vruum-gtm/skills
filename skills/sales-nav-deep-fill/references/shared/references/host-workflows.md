@@ -64,8 +64,19 @@ Inspect every batch outcome, including errors and not-attempted items. Preserve
 successful IDs, source IDs, the approved proposal, and supported retry keys in
 the receipt. After an uncertain write, inspect current state before retrying;
 if available reads cannot reconcile it, stop that item rather than duplicate it.
-Retry-key support is operation-specific. Approval, queued execution, scheduling,
-publication, and delivery are distinct states; report what is actually verified.
+Retry-key support is operation-specific. Where a write tool lists
+`idempotency_key`, send a new UUID with each new action and the same key only
+for an exact retry of that call: the retry returns the first result instead of
+running again. After a failure whose outcome is unknown the key is refused;
+inspect current state and use a new key if the action is still needed. Approval,
+queued execution, scheduling, publication, and delivery are distinct states;
+report what is actually verified.
+
+Every error carries `status`, `code`, `message` and `next_call`. Branch on
+`code`, not on the wording. When `next_call` is present, it names a call that
+would work: make it, waiting `after_seconds` first when given; `arguments:
+null` means repeat the same call unchanged. When it is `null`, read `message`
+and decide; do not retry blindly.
 
 For routine outreach monitoring, use one `get_outreach_review` read (plugin:
 `list_outreach_drafts`) and follow its `next_step` when present. End an empty

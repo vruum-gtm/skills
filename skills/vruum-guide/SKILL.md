@@ -242,6 +242,14 @@ to share, and retry an uncertain response with the same command_id. A shared
 conversation takes no private `append_message` turns. The shared list and its
 notifications carry no titles or message text; read the conversation for content.
 
+To review one customer account before acting on it, call `fetch` with
+type=account_context and id = the account's name or domain, or the UUID of its
+company, one of its deals, a person, a message or an Action. One read returns its
+people, deals, message excerpts by channel, meetings, commitments, decisions and
+open Actions. Each section says whether more exists and gives the exact `more`
+call; follow that instead of reading each person and deal separately. An
+ambiguous name returns candidates: pick one by company_id, never guess.
+
 ## Step 2: The revenue-motion map
 
 Orient recommendations across the full revenue lifecycle. Do not use "outbound" as shorthand for Vruum and do not default to an objective before diagnosing the bottleneck. Vruum today:

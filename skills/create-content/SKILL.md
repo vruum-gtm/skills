@@ -120,13 +120,13 @@ Never call `manage_content` with `action="draft"` again for a revision — that 
 
 When the seller is happy with the draft, ask how they want to land it. **Default to keeping it as a draft or scheduling it.**
 
-Bind the decision to what the seller saw: show the post from `get_content_review post_ids=[<post_id>]` and pass that item's `revision`, unchanged, as `payload.expected_revision` on schedule or publish. A 409 means the post changed after they reviewed it; show it again and get a fresh yes.
+Bind the decision to what the seller saw: show the post from `get_content_review post_ids=[<post_id>]` and pass that item's `revision`, unchanged, as `payload.expected_revision` on schedule or publish. It is required: without it the call is refused (409 `review_required`) and nothing is scheduled or published. A 409 with it means the post changed after they reviewed it; show it again and get a fresh yes.
 
 - **Keep as draft** — do nothing further; the draft already exists and is visible at `/marketing/content`.
-- **Schedule** — call `manage_content` with `action="schedule"` and a `scheduled_at` ISO-8601 timestamp. It auto-publishes when due.
+- **Schedule** — call `manage_content` with `action="schedule"` and payload `{scheduled_at: <ISO-8601 timestamp>, expected_revision}`. It auto-publishes when due.
 - **Publish now** — this is destructive and irreversible, and it will fail (marking the draft unusable) if no LinkedIn account is connected. So treat it as a deliberate, confirmed action:
   - Never call publish as a probe or a default.
-  - Only call `manage_content` with `action="publish"` **after** the seller has explicitly confirmed "publish now."
+  - Only call `manage_content` with `action="publish"` and payload `{expected_revision}` **after** the seller has explicitly confirmed "publish now."
   - Always offer save-as-draft or schedule as the safer fallback when proposing publish.
 
 **Author-scoped publish — the backend refuses to fall back to another identity.** Schedule/publish read the author from the draft row. For an author-scoped post (one you authored as a specific person in Step 2, so the draft carries their `author_user_id`), the backend resolves *that person's* LinkedIn account **strictly**: if their account is missing, disconnected, or its `quota` is exhausted at publish time, the publish **fails hard with an `Author account unavailable` error** instead of posting from another connected company account. So an author-scoped post can never silently go out under a *different person's identity* than the one you chose — the server enforces this, including for scheduled posts that publish later at worker execution time (long after this conversation). A legacy / no-author post (you omitted `author_user_id` in Step 2) keeps the old company-wide fallback — there's no specific identity to protect.

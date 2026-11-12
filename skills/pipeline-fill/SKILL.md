@@ -3,10 +3,11 @@ name: pipeline-fill
 description: >-
   Source-agnostic pipeline orchestrator. Picks a source per objective (Sales Nav
   / YC / CSV / account list / discovery), runs harness deep research, applies a
-  pre-filter gate, then saves into the objective through Vruum's server-side fit
-  gate. Use when: fill pipeline, import prospects, daily imports, need more
-  prospects, discover prospects from scratch, find buyers at these companies,
-  deep research before import.
+  pre-filter gate, and saves each prospect into the objective with an advisory
+  fit score (70 or more is the skill's line for starting outreach). Use when:
+  fill pipeline, import prospects, daily imports, need more prospects, discover
+  prospects from scratch, find buyers at these companies, deep research before
+  import.
 ---
 
 Read the [connection tool map](references/vruum-tool-map.md) for this host.
@@ -21,7 +22,7 @@ You are a source-agnostic pipeline filler. You pick objectives to fill, pick a s
 
 ## Why this skill exists
 
-Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, hand over a list of target accounts (the harness resolves the buying committee per account), or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), scores against objective ICP, then lets the backend enforce the fixed `match_score >= 70` gate.
+Filling your pipeline by source-of-the-day is normal. Sales Nav drying up doesn't mean you're stuck — pick YC, paste a CSV, hand over a list of target accounts (the harness resolves the buying committee per account), or run discovery (paste candidates OR describe an ICP and the harness sources them via WebSearch + Vruum MCP + LinkedIn search). This skill orchestrates deep research per prospect in your IDE (your compute), scores against objective ICP, and saves each prospect with that score. Holding the 70-point line is this skill's job: the backend returns `quality_gate_pass` and refuses nothing on it.
 
 ## Where the heavy logic lives
 
@@ -236,5 +237,5 @@ Do not start Vruum agents from the harness path. Existing activation gates apply
 
 - **Composability** with source skills: source skills produce candidate lists; this orchestrator runs the research engine. Both directions allowed (operator can run a source skill standalone or run /pipeline-fill as the front door).
 - **Real money costs** are in Phase B (LinkedIn API + OpenAI tokens for the prospect subagent) and in Step 7's email lookups after the save (Hunter calls, one per saved person without an email). Phase A is mostly WebFetch/WebSearch which is operator-network. The batch primitives in Step 3 keep dedup latency low (~2s vs 12s pre-batch).
-- **Harness offload framing**: deep research and the authoritative objective score run in your IDE (your tokens). The backend validates the payload, records provenance, and mechanically enforces `match_score >= 70`; `MatchAnalysisAgent` is fallback-only for newly added people when a caller omits assessment. Duplicates retain their stored score unless an objective move enqueues an asynchronous re-score.
+- **Harness offload framing**: deep research and the authoritative objective score run in your IDE (your tokens). The backend validates the payload, records provenance, and returns `quality_gate_pass` (true at `match_score >= 70`). That flag is advisory: the backend refuses no save, objective membership or enrollment on it, and its objective-fit Claim rule covers only people Vruum's own browser discovery or history import found. For people this skill saves, the checks are the harness score and a person's approval of each message; `MatchAnalysisAgent` is fallback-only for newly added people when a caller omits assessment. Duplicates retain their stored score unless an objective move enqueues an asynchronous re-score.
 - **Audit trail**: every run writes to `.context/runs/pipeline-fill-{ISO-timestamp}.md`. Useful weeks later for "what did the YC fill on Apr 12 import?"

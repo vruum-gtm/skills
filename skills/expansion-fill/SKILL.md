@@ -62,9 +62,9 @@ Down-rank or skip if:
 
 Step 5 — Surface a ranked table:
 ```
-| Rank | Account | Champion | Stage | Health | Renewal | Hook |
-|------|---------|----------|--------|--------|---------|------|
-| 1    | Acme    | Tyler T  | adopt  | 85     | 47d     | 3 new dept LinkedIns past 30d |
+| Rank | Account | Champion | Stage | Health signal | Renewal | Hook |
+|------|---------|----------|--------|---------------|---------|------|
+| 1    | Acme    | Tyler T  | adopt  | value events in 3 of last 4 weeks | 47d | 3 new dept LinkedIns past 30d |
 ```
 
 For each row, include a one-line "hook" — a specific recent observation from `get_person_360` or `fetch` type=company_research (new hire, new dept, news event, product usage signal) that frames the expansion conversation. **Never push expansion without a hook** — generic "checking in" outreach kills relationships.

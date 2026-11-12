@@ -75,6 +75,6 @@ Continue automatically? (y/n)
 
 ## Notes
 
-- **For the operator:** pick this when you want to see the deep research happen, want to interrupt mid-stream, or want zero platform compute cost on the front-half (sourcing + research). The back-half (`manage_person` action=save_discovered, which runs `analyze_person_match` + the `match_score >= 70` gate) still runs on Vruum, intentionally — it's the canonical gate.
+- **For the operator:** pick this when you want to see the deep research happen, want to interrupt mid-stream, or want zero platform compute cost on the front-half (sourcing + research). The back-half (`manage_person` action=save_discovered) still runs on Vruum: it validates the payload, records your score with its provenance, and returns `quality_gate_pass` (true at `match_score >= 70`). That flag is advisory and the backend refuses nothing on it; `/pipeline-fill` holds the line by starting only people for whom it is true.
 - **Don't call `import_prospects` with action=sales_nav_import directly from this skill.** That triggers the backend research pipeline, which is exactly what we're avoiding by being in harness mode. If you need the backend path, use `/sales-nav-platform-fill` instead.
 - **vruum-pipeline-filter pre-filter is FREE** for the operator (cheap title/company match). The expensive Phase B research only fires on prospects that survive that filter.
